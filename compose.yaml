@@ -54,10 +54,6 @@ services:
       - nwk
     volumes_from:
       - sscan-nest
-    cap_add:
-      - SYS_PTRACE
-    security_opt:
-      - seccomp=unconfined
     stdin_open: true
     tty: true
 
