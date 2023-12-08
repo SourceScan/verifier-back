@@ -18,7 +18,7 @@ services:
       - .env
   
   sscan-ipfs:
-    image: ipfs/go-ipfs:latest
+    image: ipfs/go-ipfs:v0.24.0
     container_name: sscan-ipfs
     restart: always
     environment:
@@ -34,7 +34,7 @@ services:
       - ./docker-data/ipfs:/ipfsdata
   
   sscan-nginx:
-    image: nginx:latest
+    image: nginx:1.25
     container_name: sscan-nginx
     restart: always
     ports:
