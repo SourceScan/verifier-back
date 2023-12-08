@@ -29,7 +29,7 @@ services:
     ports:
       - "127.0.0.1:${IPFS_PORT}:${IPFS_PORT}"
       - "${SWARM_PORT}:${SWARM_PORT}"
-      - "${GATE_PORT}:${GATE_PORT}"
+      - "127.0.0.1:${GATE_PORT}:${GATE_PORT}"
     volumes:
       - ./docker-data/ipfs:/ipfsdata
   
