@@ -1,5 +1,5 @@
 # Building layer
-FROM node:16-alpine as development
+FROM node:18-alpine as development
 
 # Optional NPM automation (auth) token build argument
 # ARG NPM_TOKEN
@@ -26,7 +26,7 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM node:16-alpine as production
+FROM node:18-alpine as production
 
 # Optional NPM automation (auth) token build argument
 # ARG NPM_TOKEN
