@@ -8,24 +8,38 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [16.x, 18.x, 20.x]
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Use Node.js 16.x
       uses: actions/setup-node@v3
+      with:
+        node-version: '16.x'
 
     - name: Install and Build
       run: |
         cd nest
         npm ci
         npm run build --if-present
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js 16.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16.x'
+
+    - name: Install Dependencies
+      run: |
+        cd nest
+        npm ci
 
     - name: Test Nest JS
       run: |
