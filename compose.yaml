@@ -43,8 +43,10 @@ services:
       - nwk
     volumes:
       - ./nginx/:/etc/nginx/templates/
-    env_file:
-      - .env
+    environment:
+      - NGINX_PORT=${NGINX_PORT}
+      - NEST_PORT=${NEST_PORT}
+      - GATE_PORT=${GATE_PORT}
   
   contract-builder:
     image: nearprotocol/contract-builder:latest-${ARCH}
