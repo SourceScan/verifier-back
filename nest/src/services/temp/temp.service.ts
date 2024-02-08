@@ -99,12 +99,6 @@ export class TempService {
     sourcePath: string,
   ): Promise<{ wasmBase64: string; checksum: string }> {
     try {
-      const releasePath = path.join(sourcePath, 'release');
-      // Delete the release folder if it exists
-      if (await this.checkFolder(releasePath)) {
-        await this.deleteFolder(releasePath);
-      }
-
       const dirContent = await fs.readdir(
         path.join(sourcePath, 'target', 'near'),
       );
