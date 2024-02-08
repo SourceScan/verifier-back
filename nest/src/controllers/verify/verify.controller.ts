@@ -91,7 +91,7 @@ export class VerifyController {
 
     await this.compilerService.compileRust(entryPath);
 
-    const { checksum } = await this.tempService.readRustWasmFile(sourcePath);
+    const { checksum } = await this.tempService.readRustWasmFile(entryPath);
 
     const rpcResponse: any = await rpcService.viewCode(accountId);
 
