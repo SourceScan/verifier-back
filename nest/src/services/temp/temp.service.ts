@@ -106,7 +106,7 @@ export class TempService {
       }
 
       const dirContent = await fs.readdir(
-        path.join(sourcePath, 'wasm32-unknown-unknown', 'release'),
+        path.join(sourcePath, 'target', 'near'),
       );
       const wasmFiles = dirContent.filter((file) => file.endsWith('.wasm'));
 
@@ -116,8 +116,8 @@ export class TempService {
 
       const wasmFilePath = path.join(
         sourcePath,
-        'wasm32-unknown-unknown',
-        'release',
+        'target',
+        'near',
         wasmFiles[0],
       );
       const wasmFileData = await fs.readFile(wasmFilePath);
@@ -129,7 +129,7 @@ export class TempService {
       const checksum = bs58.encode(hash.digest());
 
       // Delete the wasm32-unknown-unknown folder
-      await this.deleteFolder(path.join(sourcePath, 'wasm32-unknown-unknown'));
+      await this.deleteFolder(path.join(sourcePath, 'target'));
 
       return { wasmBase64, checksum };
     } catch (error) {
