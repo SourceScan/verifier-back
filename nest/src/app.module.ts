@@ -54,7 +54,7 @@ export class AppModule implements OnModuleInit {
 
   async onModuleInit() {
     const { stdout } = await this.execService.executeCommand(
-      'docker inspect nearprotocol/contract-builder:latest-amd64',
+      `docker inspect ${process.env.BUILDER_IMAGE}`,
     );
     const jsonData = JSON.parse(stdout);
     const builderImage = jsonData[0].RepoDigests[0];

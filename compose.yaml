@@ -49,7 +49,7 @@ services:
       - GATE_PORT=${GATE_PORT}
   
   contract-builder:
-    image: sourcescan/cargo-near:0.6.0
+    image: ${BUILDER_IMAGE}
     container_name: contract-builder
     restart: always
     networks:
