@@ -19,9 +19,6 @@ server
 
 	listen ${NGINX_PORT};
 
-    # Increase the body size limit if the requests are large
-    client_max_body_size 100M;
-
     location / {
         proxy_pass http://nest;
         proxy_read_timeout 10m;  # Increase read timeout to 10 minutes
