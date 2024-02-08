@@ -62,7 +62,7 @@ export class CompileController {
     await this.compilerService.compileRust(entryPath);
 
     const { wasmBase64, checksum } = await this.tempService.readRustWasmFile(
-      wasmPath,
+      sourcePath,
     );
 
     res
