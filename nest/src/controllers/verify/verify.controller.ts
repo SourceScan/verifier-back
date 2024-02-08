@@ -89,7 +89,7 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    await this.compilerService.compileRust(entryPath, sourcePath);
+    await this.compilerService.compileRust(entryPath);
 
     const { checksum } = await this.tempService.readRustWasmFile(sourcePath);
 

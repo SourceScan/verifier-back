@@ -57,11 +57,12 @@ export class CompileController {
     const { entryPoint } = body;
     const entryPath = path.dirname(path.join(sourcePath, entryPoint));
 
-    await this.compilerService.compileRust(entryPath, sourcePath);
+    await this.compilerService.compileRust(entryPath);
 
     const { wasmBase64, checksum } = await this.tempService.readRustWasmFile(
       sourcePath,
     );
+
     res
       .status(HttpStatus.OK)
       .json({ wasmBase64: wasmBase64, checksum: checksum });
