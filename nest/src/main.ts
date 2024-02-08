@@ -20,7 +20,9 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://near.org',
+      'https://test.near.org',
       'https://near.social',
+      'https://test.near.social',
       'https://api.sourcescan.dev',
       'https://sourcescan.dev',
       'https://testnet.sourcescan.dev',
