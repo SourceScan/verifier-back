@@ -54,10 +54,10 @@ export class CompileController {
     @Res() res: Response,
   ) {
     const { sourcePath } = req.jwtPayload;
-    const { entryPoint } = body;
+    const { entryPoint, attributes } = body;
     const entryPath = path.dirname(path.join(sourcePath, entryPoint));
 
-    await this.compilerService.compileRust(entryPath);
+    await this.compilerService.compileRust(entryPath, attributes);
 
     const { wasmBase64, checksum } = await this.tempService.readRustWasmFile(
       entryPath,

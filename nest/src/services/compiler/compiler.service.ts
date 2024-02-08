@@ -8,8 +8,13 @@ export class CompilerService {
 
   constructor(private execService: ExecService) {}
 
-  async compileRust(sourcePath: string): Promise<{ stdout: string }> {
-    const command = `docker exec contract-builder sh ${this.scriptsPath}/rust.sh ${sourcePath}`;
+  async compileRust(
+    sourcePath: string,
+    attributes: string[],
+  ): Promise<{ stdout: string }> {
+    const command = `docker exec contract-builder sh ${
+      this.scriptsPath
+    }/rust.sh ${sourcePath} ${attributes.join(' ')}`;
     this.logger.log(`Starting Rust compilation with command: ${command}`);
     try {
       const { stdout } = await this.execService.executeCommand(command);

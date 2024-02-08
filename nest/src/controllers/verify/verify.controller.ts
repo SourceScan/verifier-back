@@ -74,7 +74,7 @@ export class VerifyController {
     @Res() res: Response,
   ) {
     const { sourcePath, github } = req.jwtPayload;
-    const { entryPoint, networkId, accountId, uploadToIpfs } = body;
+    const { entryPoint, networkId, accountId, uploadToIpfs, attributes } = body;
     const entryPath = path.dirname(path.join(sourcePath, entryPoint));
 
     let verifierService: VerifierService;
@@ -89,7 +89,7 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    await this.compilerService.compileRust(entryPath);
+    await this.compilerService.compileRust(entryPath, attributes);
 
     const { checksum } = await this.tempService.readRustWasmFile(entryPath);
 
