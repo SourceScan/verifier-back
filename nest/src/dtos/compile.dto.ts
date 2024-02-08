@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CompileRustDto {
   @ApiProperty({
@@ -9,11 +9,4 @@ export class CompileRustDto {
   @IsNotEmpty()
   @IsString()
   entryPoint: string;
-
-  @ApiProperty({
-    description: 'The attributes to pass to the cargo near compiler',
-    example: ['--no-abi', '--no-verify'],
-  })
-  @IsArray()
-  attributes: string[];
 }

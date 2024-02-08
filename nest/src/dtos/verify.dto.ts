@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class VerifyRustDto {
   @ApiProperty({
@@ -32,13 +32,6 @@ export class VerifyRustDto {
   })
   @IsNotEmpty()
   uploadToIpfs: boolean;
-
-  @ApiProperty({
-    description: 'The attributes to pass to the cargo near compiler',
-    example: ['--no-abi', '--no-verify'],
-  })
-  @IsArray()
-  attributes: string[];
 }
 
 export class BuilderImageInfoResponse {
