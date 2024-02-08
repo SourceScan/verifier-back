@@ -12,12 +12,9 @@ export class CompilerService {
     sourcePath: string,
     attributes: string[],
   ): Promise<{ stdout: string }> {
-    // Base command without attributes
-    let command = `docker exec contract-builder sh ${this.scriptsPath}/rust.sh ${sourcePath}`;
-    // Append attributes if the array is not empty
-    if (attributes.length > 0) {
-      command += ` ${attributes.join(' ')}`;
-    }
+    const command = `docker exec contract-builder sh ${
+      this.scriptsPath
+    }/rust.sh ${sourcePath} ${attributes.join(' ')}`;
     this.logger.log(`Starting Rust compilation with command: ${command}`);
     try {
       const { stdout } = await this.execService.executeCommand(command);
