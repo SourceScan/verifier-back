@@ -53,6 +53,8 @@ export class CompileController {
     @Body() body: CompileRustDto,
     @Res() res: Response,
   ) {
+    res.setTimeout(10 * 60 * 1000);
+
     const { sourcePath } = req.jwtPayload;
     const { entryPoint } = body;
     const entryPath = path.dirname(path.join(sourcePath, entryPoint));
