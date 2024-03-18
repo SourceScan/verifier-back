@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
+import { IsSafePath } from 'src/validators/safe-path.decorator';
 
 export class VerifyRustDto {
   @ApiProperty({
@@ -8,6 +9,7 @@ export class VerifyRustDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsSafePath()
   entryPoint: string;
 
   @ApiProperty({

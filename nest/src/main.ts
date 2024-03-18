@@ -38,6 +38,7 @@ async function bootstrap() {
       forbidNonWhitelisted: true, // Throw errors if non-whitelisted values are provided
       transform: true, // Automatically transform payloads to be objects typed according to their DTO classes
       disableErrorMessages: false, // Optionally set this to true in production mode
+      validateCustomDecorators: true, // Enable usage of custom decorators
     }),
   );
 
