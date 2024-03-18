@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { IsSafeCompilationAttributes } from 'src/validators/safe-attrs.decorator';
+import { IsSafePath } from 'src/validators/safe-path.decorator';
 
 export class CompileRustDto {
   @ApiProperty({
@@ -8,6 +10,7 @@ export class CompileRustDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsSafePath()
   entryPoint: string;
 
   @ApiProperty({
@@ -15,5 +18,6 @@ export class CompileRustDto {
     example: ['--no-abi', '--no-verify'],
   })
   @IsArray()
+  @IsSafeCompilationAttributes()
   attributes: string[];
 }

@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
+import { IsSafeString } from 'src/validators/safe-string.decorator';
+import { IsSafeUrl } from 'src/validators/safe-url.decorator';
 
 export class GithubDto {
   @ApiProperty({
@@ -8,6 +10,7 @@ export class GithubDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsSafeUrl()
   repo: string;
 
   @ApiProperty({
@@ -16,6 +19,7 @@ export class GithubDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsSafeString()
   sha: string;
 }
 
