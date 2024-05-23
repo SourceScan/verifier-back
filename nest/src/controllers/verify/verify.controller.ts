@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Get,
   HttpException,
   HttpStatus,
   Inject,
@@ -18,7 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import path from 'path';
-import { BuilderImageInfoResponse, VerifyRustDto } from '../../dtos/verify.dto';
+import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
 import { ExecExceptionFilter } from '../../filters/exec-exception/exec-exception.filter';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
@@ -156,21 +155,5 @@ export class VerifyController {
     );
 
     return res.status(200).json({ contractSourceMeta });
-  }
-
-  @Get('builderInfo')
-  @ApiOperation({
-    summary: 'Get builder image information',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Builder image information',
-    type: BuilderImageInfoResponse,
-  })
-  getBuilderInfo(): BuilderImageInfoResponse {
-    const response: BuilderImageInfoResponse = {
-      builderImage: this.builderInfoService.getBuilderImage(),
-    };
-    return response;
   }
 }
