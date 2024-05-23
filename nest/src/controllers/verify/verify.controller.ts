@@ -134,6 +134,30 @@ export class VerifyController {
       .json({ message: 'Contract verified successfully', checksum: checksum });
   }
 
+  @Post('test')
+  async test(@Body() body: VerifyRustDto, @Res() res: Response) {
+    const { entryPoint, networkId, accountId, uploadToIpfs, attributes } = body;
+
+    let verifierService: VerifierService;
+    let rpcService: RpcService;
+    if (networkId === 'mainnet') {
+      verifierService = this.mainnetVerifierService;
+      rpcService = this.mainnetRpcService;
+    } else if (networkId === 'testnet') {
+      verifierService = this.testnetVerifierService;
+      rpcService = this.testnetRpcService;
+    } else {
+      throw new HttpException('Invalid network ID', 400);
+    }
+
+    const contractSourceMeta = await rpcService.callFunction(
+      accountId,
+      'contract_source_metadata',
+    );
+
+    return res.status(200).json({ contractSourceMeta });
+  }
+
   @Get('builderInfo')
   @ApiOperation({
     summary: 'Get builder image information',

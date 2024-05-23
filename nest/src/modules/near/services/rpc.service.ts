@@ -18,6 +18,10 @@ export class RpcService {
     });
   }
 
+  private byteArrayToString(byteArray: number[]): string {
+    return String.fromCharCode(...byteArray);
+  }
+
   async viewCode(accountId: string): Promise<QueryResponseKind> {
     try {
       const response = await this.provider.query({
@@ -31,6 +35,40 @@ export class RpcService {
     } catch (error) {
       this.logger.error(
         `Error viewing code for account ID: ${accountId}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async callFunction(
+    accountId: string,
+    methodName: string,
+    args?: any[],
+  ): Promise<any> {
+    try {
+      const response: any = await this.provider.query({
+        request_type: 'call_function',
+        finality: 'final',
+        account_id: accountId,
+        method_name: methodName,
+        args_base64: args ? Buffer.from(args).toString('base64') : '',
+      });
+
+      this.logger.log(
+        `Function ${methodName} called for account ID: ${accountId}`,
+      );
+
+      if (response && response.result) {
+        const jsonString = this.byteArrayToString(response.result);
+        const jsonObject = JSON.parse(jsonString);
+        return jsonObject;
+      }
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Error calling function ${methodName} for account ID: ${accountId}`,
         error.stack,
       );
       throw error;
