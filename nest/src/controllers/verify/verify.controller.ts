@@ -9,10 +9,8 @@ import {
   Req,
   Res,
   UseFilters,
-  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiExtraModels,
   ApiOperation,
   ApiResponse,
@@ -23,7 +21,6 @@ import path from 'path';
 import { BuilderImageInfoResponse, VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
 import { ExecExceptionFilter } from '../../filters/exec-exception/exec-exception.filter';
-import { AuthGuard } from '../../guards/auth/auth.guard';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
 import { RpcService } from '../../modules/near/services/rpc.service';
 import { VerifierService } from '../../modules/near/services/verifier.service';
@@ -53,8 +50,6 @@ export class VerifyController {
 
   @Post('rust')
   @UseFilters(ExecExceptionFilter)
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Verify Rust source code and add to contract with signer',
   })
@@ -89,9 +84,9 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    await this.compilerService.compileRust(entryPath, attributes);
-
-    const { checksum } = await this.tempService.readRustWasmFile(entryPath);
+    const contractData: ContractData = await verifierService.getContract(
+      accountId,
+    );
 
     const rpcResponse: any = await rpcService.viewCode(accountId);
 
@@ -101,13 +96,17 @@ export class VerifyController {
         .json({ message: 'Error while calling rpc method' });
     }
 
+    if (contractData && contractData.code_hash === rpcResponse.hash) {
+      return res.status(200).json({ message: "Code hash didn't change" });
+    }
+
+    await this.compilerService.compileRust(entryPath, attributes);
+
+    const { checksum } = await this.tempService.readRustWasmFile(entryPath);
+
     if (rpcResponse.hash !== checksum) {
       return res.status(200).json({ message: 'Code hash mismatch' });
     }
-
-    const contractData: ContractData = await verifierService.getContract(
-      accountId,
-    );
 
     if (contractData && contractData.code_hash === checksum) {
       return res.status(200).json({ message: "Code hash didn't change" });

@@ -1,10 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CompileController } from './controllers/compile/compile.controller';
-import { GatewayController } from './controllers/gateway/gateway.controller';
-import { IpfsController } from './controllers/ipfs/ipfs.controller';
-import { TempController } from './controllers/temp/temp.controller';
 import { VerifyController } from './controllers/verify/verify.controller';
 import { NearModule } from './modules/near/near.module';
 import { AuthService } from './services/auth/auth.service';
@@ -27,13 +23,7 @@ import { TempService } from './services/temp/temp.service';
     NearModule,
     ScheduleModule.forRoot(),
   ],
-  controllers: [
-    CompileController,
-    TempController,
-    IpfsController,
-    GatewayController,
-    VerifyController,
-  ],
+  controllers: [VerifyController],
   providers: [
     IpfsService,
     TempService,
