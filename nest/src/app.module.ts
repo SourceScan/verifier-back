@@ -22,7 +22,6 @@ import { TempService } from './services/temp/temp.service';
     EncryptionService,
     RandomService,
     ExecService,
-
     BuilderInfoService,
   ],
 })
