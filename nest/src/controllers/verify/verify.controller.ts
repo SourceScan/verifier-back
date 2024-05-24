@@ -14,6 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { ContractMetadataDto } from 'src/dtos/contract-metadata.dto';
 import { ExecExceptionFilter } from 'src/filters/exec-exception/exec-exception.filter';
 import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
@@ -95,7 +96,8 @@ export class VerifyController {
       'contract_source_metadata',
     );
 
-    const contractSourceMeta = contractSourceMetaResponse.result;
+    const contractSourceMeta: ContractMetadataDto =
+      contractSourceMetaResponse.result;
 
     if (!contractSourceMeta) {
       return res

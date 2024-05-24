@@ -45,17 +45,6 @@ services:
       - NGINX_PORT=${NGINX_PORT}
       - NEST_PORT=${NEST_PORT}
       - GATE_PORT=${GATE_PORT}
-  
-  contract-builder:
-    image: ${BUILDER_IMAGE}
-    container_name: contract-builder
-    restart: always
-    networks:
-      - nwk
-    volumes_from:
-      - sscan-nest
-    stdin_open: true
-    tty: true
 
 volumes:
   nest-temp:
