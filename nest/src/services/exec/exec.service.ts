@@ -52,7 +52,6 @@ export class ExecService {
       'failed', // Indicative of a failure in an operation
       'cannot', // Cannot perform an operation
       "can't", // Short form of cannot
-      'unable', // Unable to perform an operation
       'panic:', // Rust panic messages
       // Linux errors
       'unrecoverable error', // Indicative of an unrecoverable error
