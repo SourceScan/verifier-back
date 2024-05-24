@@ -14,8 +14,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { ContractMetadataDto } from 'src/dtos/contract-metadata.dto';
+import path from 'path';
+import { BuildInfo, ContractMetadataDto } from 'src/dtos/contract-metadata.dto';
 import { ExecExceptionFilter } from 'src/filters/exec-exception/exec-exception.filter';
+import { GithubService } from 'src/services/github/github.service';
 import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
@@ -32,6 +34,7 @@ import { TempService } from '../../services/temp/temp.service';
 export class VerifyController {
   constructor(
     private readonly compilerService: CompilerService,
+    private readonly githubService: GithubService,
     private readonly tempService: TempService,
     private readonly ipfsService: IpfsService,
     private readonly builderInfoService: BuilderInfoService,
@@ -75,45 +78,67 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
+    // Get the contract data from the verifier contract
     const contractData: ContractData = await verifierService.getContract(
       accountId,
     );
 
+    // Get the contract code from the RPC node
     const rpcResponse: any = await rpcService.viewCode(accountId);
-
     if (!rpcResponse) {
       return res
         .status(200)
         .json({ message: 'Error while calling rpc method' });
     }
 
+    // Check if the code hash is the same as the one in the verifier contract
     if (contractData && contractData.code_hash === rpcResponse.hash) {
       return res.status(200).json({ message: "Code hash didn't change" });
     }
 
-    const contractSourceMetaResponse = await rpcService.callFunction(
+    // Get the contract metadata with contract_source_metadata method
+    const contractMetadataResponse = await rpcService.callFunction(
       accountId,
       'contract_source_metadata',
     );
 
-    const contractSourceMeta: ContractMetadataDto =
-      contractSourceMetaResponse.result;
-
-    if (!contractSourceMeta) {
+    const contractMetadata: ContractMetadataDto =
+      contractMetadataResponse.result;
+    // Check if the contract metadata is available
+    if (!contractMetadata) {
       return res
         .status(200)
         .json({ message: `No source metadata found for ${accountId}` });
     }
 
-    if (!contractSourceMeta.build_info) {
+    const buildInfo: BuildInfo = contractMetadata.build_info;
+    // Check if the build info is available
+    if (!buildInfo) {
       return res
         .status(200)
         .json({ message: `No build info found for ${accountId}` });
     }
 
-    return res.status(200).json(contractSourceMeta);
+    // Create a temporary folder to clone the repository
+    const tempFolder = await this.tempService.createFolder();
 
-    // await this.compilerService.compileRust(entryPath, attributes);
+    // Extract the repository URL and the commit hash
+    const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+      buildInfo.source_code_snapshot,
+    );
+    // Clone the repository and checkout the commit
+    await this.githubService.clone(tempFolder, repoUrl);
+    // Checkout the commit in repo
+    const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
+    await this.githubService.checkout(repoPath, sha);
+
+    // TODO: move to temp service
+    const entryPath = path.join(repoPath, buildInfo.contract_path);
+    // Compile the Rust code
+    await this.compilerService.compileRust(
+      entryPath,
+      buildInfo.build_command.join(' '),
+    );
 
     // const { checksum } = await this.tempService.readRustWasmFile(entryPath);
 

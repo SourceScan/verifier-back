@@ -30,6 +30,21 @@ export class GithubService {
     return { owner, repo, sha };
   }
 
+  parseSourceCodeSnapshot(sourceCodeSnapshot: string): {
+    repoUrl: string;
+    sha: string;
+  } {
+    // Remove the 'git+' prefix
+    const repoInfo = sourceCodeSnapshot.replace('git+', '');
+    // Extract the repository URL and the commit hash
+    const [repoUrl, sha] = repoInfo.split('?rev=');
+    return { repoUrl, sha };
+  }
+
+  getRepoPath(tempFolder: string, repoUrl: string): string {
+    return `${tempFolder}/${repoUrl.split('/').pop().replace('.git', '')}`;
+  }
+
   async checkout(repoPath: string, sha: string): Promise<void> {
     const command = `sh ${this.scriptsPath}/checkout.sh ${repoPath} ${sha}`;
     this.logger.log(`Starting checkout command: ${command}`);

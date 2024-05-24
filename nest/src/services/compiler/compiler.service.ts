@@ -10,9 +10,9 @@ export class CompilerService {
 
   async compileRust(
     sourcePath: string,
-    attributes: string[],
+    buildCommand: string,
   ): Promise<{ stdout: string }> {
-    const command = `rust.sh ${sourcePath} ${attributes.join(' ')}`;
+    const command = `sh ${this.scriptsPath}/rust.sh ${sourcePath} "${buildCommand}"`;
     this.logger.log(`Starting Rust compilation with command: ${command}`);
     try {
       const { stdout } = await this.execService.executeCommand(command);

@@ -10,10 +10,9 @@ services:
       - '127.0.0.1:${NEST_PORT}:${NEST_PORT}'
     volumes:
       - ./nest/scripts:/app/scripts
-      - /var/run/docker.sock:/var/run/docker.sock
-      - nest-temp:/tmp
     env_file:
       - .env
+    privileged: true
   
   sscan-ipfs:
     image: ipfs/go-ipfs:v0.24.0
@@ -45,10 +44,6 @@ services:
       - NGINX_PORT=${NGINX_PORT}
       - NEST_PORT=${NEST_PORT}
       - GATE_PORT=${GATE_PORT}
-
-volumes:
-  nest-temp:
-    driver: local
 
 networks:
   nwk:
