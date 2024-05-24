@@ -35,7 +35,7 @@ services:
     container_name: sscan-nginx
     restart: always
     ports:
-      - '127.0.0.1:${NGINX_PORT}:${NGINX_PORT}'
+      - '${HOST}:${NGINX_PORT}:${NGINX_PORT}'
     networks:
       - nwk
     volumes:
