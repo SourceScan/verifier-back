@@ -26,7 +26,7 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM node:20-slim as production
+FROM amd64/node:20-slim as production
 
 # Optional NPM automation (auth) token build argument
 # ARG NPM_TOKEN
