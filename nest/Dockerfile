@@ -1,11 +1,5 @@
 # Building layer
-FROM node:20-alpine as development
-
-# Optional NPM automation (auth) token build argument
-# ARG NPM_TOKEN
-
-# Optionally authenticate NPM registry
-# RUN npm set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
+FROM amd64/node:20-alpine as development
 
 WORKDIR /app
 
@@ -16,7 +10,7 @@ RUN apk add --update python3 make g++\
 COPY tsconfig*.json ./
 COPY package*.json ./
 
-# Install dependencies from package-lock.json, see https://docs.npmjs.com/cli/v7/commands/npm-ci
+# Install dependencies from package-lock.json
 RUN npm ci
 
 # Copy application sources (.ts, .tsx, js)
@@ -26,38 +20,20 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM amd64/node:20-slim as production
-
-# Optional NPM automation (auth) token build argument
-# ARG NPM_TOKEN
-
-# Optionally authenticate NPM registry
-# RUN npm set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
+FROM amd64/docker:dind as production
 
 # Install dependencies for Rust, build tools, and HIDAPI
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     python3 \
     git \
     curl \
-    build-essential \
-    ca-certificates \
-    pkg-config \
-    libudev-dev \
-    gnupg \
-    lsb-release \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set up Docker's official GPG key and stable repository
-RUN mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
-    && echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install Docker CLI
-RUN apt-get update && \
-    apt-get install -y docker-ce-cli docker-ce fuse-overlayfs && \
-    apt-get clean
+    perl \
+    protobuf \
+    eudev-dev \
+    build-base \
+    pkgconfig \ 
+    linux-headers \
+    bash
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
@@ -75,6 +51,9 @@ RUN git clone https://github.com/SourceScan/cargo-near\
 
 WORKDIR /app
 
+# Copy node and npm from development
+COPY --from=development /usr/local /usr/local
+
 # Copy dependencies files
 COPY package*.json ./
 
@@ -84,4 +63,5 @@ RUN npm ci --omit=dev
 # Copy production build
 COPY --from=development /app/dist/ ./dist/
 
-CMD ["sh", "-c", "dockerd & sleep 5 && node dist/main.js"]
+# Start the application when dockerd is ready
+CMD sh -c "dockerd & while (! docker stats --no-stream ); do sleep 1; done && node dist/main.js"
