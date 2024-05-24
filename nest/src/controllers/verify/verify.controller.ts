@@ -135,10 +135,13 @@ export class VerifyController {
     // TODO: move to temp service
     const entryPath = path.join(repoPath, buildInfo.contract_path);
     // Compile the Rust code
-    await this.compilerService.compileRust(
+    const { stdout } = await this.compilerService.compileRust(
       entryPath,
       buildInfo.build_command.join(' '),
     );
+
+    // TODO: remove this (TESTING ONLY)
+    res.status(200).json({ stdout });
 
     // const { checksum } = await this.tempService.readRustWasmFile(entryPath);
 
