@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { providers } from 'near-api-js';
 import { QueryResponseKind } from 'near-api-js/lib/providers/provider';
 import NearConfig from '../interfaces/near-config.interface';
@@ -37,7 +37,7 @@ export class RpcService {
         `Error viewing code for account ID: ${accountId}`,
         error.stack,
       );
-      throw error;
+      throw new HttpException(error.message, 500);
     }
   }
 
@@ -61,8 +61,7 @@ export class RpcService {
 
       if (response && response.result) {
         const jsonString = this.byteArrayToString(response.result);
-        const jsonObject = JSON.parse(jsonString);
-        return jsonObject;
+        response.result = JSON.parse(jsonString);
       }
 
       return response;
@@ -71,7 +70,7 @@ export class RpcService {
         `Error calling function ${methodName} for account ID: ${accountId}`,
         error.stack,
       );
-      throw error;
+      throw new HttpException(error.message, 500);
     }
   }
 }

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { VerifyController } from './controllers/verify/verify.controller';
 import { NearModule } from './modules/near/near.module';
-import { AuthService } from './services/auth/auth.service';
 import { BuilderInfoService } from './services/builder-info/builder-info.service';
 import { CompilerService } from './services/compiler/compiler.service';
 import { EncryptionService } from './services/encryption/encryption.service';
@@ -23,7 +22,7 @@ import { TempService } from './services/temp/temp.service';
     EncryptionService,
     RandomService,
     ExecService,
-    AuthService,
+
     BuilderInfoService,
   ],
 })

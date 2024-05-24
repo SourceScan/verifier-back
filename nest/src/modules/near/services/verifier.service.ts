@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Account, Contract, connect, keyStores, utils } from 'near-api-js';
 import ContractData from '../interfaces/contract-data.interface';
 import GithubData from '../interfaces/github-data.interface';
@@ -98,7 +98,7 @@ export class VerifierService {
         `Error setting contract for account ID: ${accountId}`,
         error.stack,
       );
-      throw error; // Re-throw the error after logging
+      throw new HttpException(error.message, 500);
     }
   }
 }

@@ -2,10 +2,8 @@ import {
   Body,
   Controller,
   HttpException,
-  HttpStatus,
   Inject,
   Post,
-  Req,
   Res,
   UseFilters,
 } from '@nestjs/common';
@@ -16,10 +14,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import path from 'path';
+import { ExecExceptionFilter } from 'src/filters/exec-exception/exec-exception.filter';
 import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
-import { ExecExceptionFilter } from '../../filters/exec-exception/exec-exception.filter';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
 import { RpcService } from '../../modules/near/services/rpc.service';
 import { VerifierService } from '../../modules/near/services/verifier.service';
@@ -29,7 +26,7 @@ import { IpfsService } from '../../services/ipfs/ipfs.service';
 import { TempService } from '../../services/temp/temp.service';
 
 @ApiTags('verify')
-@ApiExtraModels(ExecException)
+@ApiExtraModels(HttpException)
 @Controller('verify')
 export class VerifyController {
   constructor(
@@ -62,14 +59,8 @@ export class VerifyController {
     description: 'Execution exception occurred',
     type: ExecException,
   })
-  async verifyRust(
-    @Req() req,
-    @Body() body: VerifyRustDto,
-    @Res() res: Response,
-  ) {
-    const { sourcePath, github } = req.jwtPayload;
-    const { entryPoint, networkId, accountId, uploadToIpfs, attributes } = body;
-    const entryPath = path.dirname(path.join(sourcePath, entryPoint));
+  async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
+    const { networkId, accountId, uploadToIpfs } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -99,61 +90,58 @@ export class VerifyController {
       return res.status(200).json({ message: "Code hash didn't change" });
     }
 
-    await this.compilerService.compileRust(entryPath, attributes);
-
-    const { checksum } = await this.tempService.readRustWasmFile(entryPath);
-
-    if (rpcResponse.hash !== checksum) {
-      return res.status(200).json({ message: 'Code hash mismatch' });
-    }
-
-    if (contractData && contractData.code_hash === checksum) {
-      return res.status(200).json({ message: "Code hash didn't change" });
-    }
-
-    let cid = '';
-    if (uploadToIpfs) {
-      cid = await this.ipfsService.addFolder(sourcePath);
-    }
-
-    const builderImage = await this.builderInfoService.getBuilderImage();
-
-    await verifierService.setContract(
-      accountId,
-      cid,
-      checksum,
-      'rust',
-      entryPoint,
-      builderImage,
-      github,
-    );
-
-    return res
-      .status(HttpStatus.OK)
-      .json({ message: 'Contract verified successfully', checksum: checksum });
-  }
-
-  @Post('test')
-  async test(@Body() body: VerifyRustDto, @Res() res: Response) {
-    const { entryPoint, networkId, accountId, uploadToIpfs, attributes } = body;
-
-    let verifierService: VerifierService;
-    let rpcService: RpcService;
-    if (networkId === 'mainnet') {
-      verifierService = this.mainnetVerifierService;
-      rpcService = this.mainnetRpcService;
-    } else if (networkId === 'testnet') {
-      verifierService = this.testnetVerifierService;
-      rpcService = this.testnetRpcService;
-    } else {
-      throw new HttpException('Invalid network ID', 400);
-    }
-
-    const contractSourceMeta = await rpcService.callFunction(
+    const contractSourceMetaResponse = await rpcService.callFunction(
       accountId,
       'contract_source_metadata',
     );
 
-    return res.status(200).json({ contractSourceMeta });
+    const contractSourceMeta = contractSourceMetaResponse.result;
+
+    if (!contractSourceMeta) {
+      return res
+        .status(200)
+        .json({ message: `No source metadata found for ${accountId}` });
+    }
+
+    if (!contractSourceMeta.build_info) {
+      return res
+        .status(200)
+        .json({ message: `No build info found for ${accountId}` });
+    }
+
+    return res.status(200).json(contractSourceMeta);
+
+    // await this.compilerService.compileRust(entryPath, attributes);
+
+    // const { checksum } = await this.tempService.readRustWasmFile(entryPath);
+
+    // if (rpcResponse.hash !== checksum) {
+    //   return res.status(200).json({ message: 'Code hash mismatch' });
+    // }
+
+    // if (contractData && contractData.code_hash === checksum) {
+    //   return res.status(200).json({ message: "Code hash didn't change" });
+    // }
+
+    // let cid = '';
+    // if (uploadToIpfs) {
+    //   cid = await this.ipfsService.addFolder(sourcePath);
+    // }
+
+    // const builderImage = await this.builderInfoService.getBuilderImage();
+
+    // await verifierService.setContract(
+    //   accountId,
+    //   cid,
+    //   checksum,
+    //   'rust',
+    //   entryPoint,
+    //   builderImage,
+    //   github,
+    // );
+
+    // return res
+    //   .status(HttpStatus.OK)
+    //   .json({ message: 'Contract verified successfully', checksum: checksum });
   }
 }
