@@ -96,8 +96,27 @@ export class TempService {
   }
 
   async readRustWasmFile(
-    sourcePath: string,
+    wasmFilePath: string,
   ): Promise<{ wasmBase64: string; checksum: string }> {
+    try {
+      const wasmFileData = await fs.readFile(wasmFilePath);
+      const wasmBase64 = wasmFileData.toString('base64');
+
+      // Calculate SHA-256 hash
+      const hash = crypto.createHash('sha256');
+      hash.update(wasmFileData);
+      const checksum = bs58.encode(hash.digest());
+
+      return { wasmBase64, checksum };
+    } catch (error) {
+      this.logger.error(`Error in readWasmFile: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findRustWasmInFolder(
+    sourcePath: string,
+  ): Promise<{ wasmFilePath: string }> {
     try {
       const dirContent = await fs.readdir(
         path.join(sourcePath, 'target', 'near'),
@@ -114,18 +133,8 @@ export class TempService {
         'near',
         wasmFiles[0],
       );
-      const wasmFileData = await fs.readFile(wasmFilePath);
-      const wasmBase64 = wasmFileData.toString('base64');
 
-      // Calculate SHA-256 hash
-      const hash = crypto.createHash('sha256');
-      hash.update(wasmFileData);
-      const checksum = bs58.encode(hash.digest());
-
-      // Delete the wasm32-unknown-unknown folder
-      await this.deleteFolder(path.join(sourcePath, 'target'));
-
-      return { wasmBase64, checksum };
+      return { wasmFilePath };
     } catch (error) {
       this.logger.error(`Error in readWasmFile: ${error.message}`);
       throw error;

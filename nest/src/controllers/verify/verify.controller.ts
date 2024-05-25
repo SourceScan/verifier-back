@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   HttpException,
+  HttpStatus,
   Inject,
   Post,
   Res,
@@ -141,25 +142,40 @@ export class VerifyController {
       `cargo near build`,
     );
 
-    // TODO: remove this (TESTING ONLY)
-    res.status(200).json({ stdout });
+    // TODO: move to temp service
+    // Extracting the binary path from the compilation output
+    const binaryPathMatch = stdout
+      .join('\n')
+      .match(
+        new RegExp(
+          `Binary:\\s*(${repoPath.replace(
+            /[-/\\^$*+?.()|[\]{}]/g,
+            '\\$&',
+          )}.*?\\.wasm)`,
+        ),
+      );
+    if (!binaryPathMatch) {
+      throw new Error('Binary path not found in compilation output');
+    }
+    const binaryPath = binaryPathMatch[1];
 
-    // const { checksum } = await this.tempService.readRustWasmFile(entryPath);
+    // Read the compiled WASM file
+    const { checksum } = await this.tempService.readRustWasmFile(binaryPath);
+    const targetPath = path.join(path.dirname(binaryPath), '../..');
+    this.tempService.deleteFolder(targetPath);
 
-    // if (rpcResponse.hash !== checksum) {
-    //   return res.status(200).json({ message: 'Code hash mismatch' });
-    // }
+    if (rpcResponse.hash !== checksum) {
+      return res.status(200).json({ message: 'Code hash mismatch' });
+    }
 
-    // if (contractData && contractData.code_hash === checksum) {
-    //   return res.status(200).json({ message: "Code hash didn't change" });
-    // }
+    if (contractData && contractData.code_hash === checksum) {
+      return res.status(200).json({ message: "Code hash didn't change" });
+    }
 
-    // let cid = '';
-    // if (uploadToIpfs) {
-    //   cid = await this.ipfsService.addFolder(sourcePath);
-    // }
-
-    // const builderImage = await this.builderInfoService.getBuilderImage();
+    let cid = '';
+    if (uploadToIpfs) {
+      cid = await this.ipfsService.addFolder(repoPath);
+    }
 
     // await verifierService.setContract(
     //   accountId,
@@ -171,8 +187,8 @@ export class VerifyController {
     //   github,
     // );
 
-    // return res
-    //   .status(HttpStatus.OK)
-    //   .json({ message: 'Contract verified successfully', checksum: checksum });
+    return res
+      .status(HttpStatus.OK)
+      .json({ message: 'Contract verified successfully', checksum: checksum });
   }
 }
