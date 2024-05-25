@@ -11,7 +11,7 @@ export class CompilerService {
   async compileRust(
     sourcePath: string,
     buildCommand: string,
-  ): Promise<{ stdout: string }> {
+  ): Promise<{ stdout: string[] }> {
     const command = `sh ${this.scriptsPath}/rust.sh ${sourcePath} "${buildCommand}"`;
     this.logger.log(`Starting Rust compilation with command: ${command}`);
     try {
@@ -24,7 +24,7 @@ export class CompilerService {
     }
   }
 
-  async compileTypeScript(sourcePath: string): Promise<{ stdout: string }> {
+  async compileTypeScript(sourcePath: string): Promise<{ stdout: string[] }> {
     const command = `sh ${this.scriptsPath}/ts.sh ${sourcePath}`;
     this.logger.log(`Starting TypeScript compilation with command: ${command}`);
     try {

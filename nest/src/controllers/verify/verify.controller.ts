@@ -137,7 +137,8 @@ export class VerifyController {
     // Compile the Rust code
     const { stdout } = await this.compilerService.compileRust(
       entryPath,
-      buildInfo.build_command.join(' '),
+      // TODO: get command from buildInfo without args check whitelist
+      `cargo near build`,
     );
 
     // TODO: remove this (TESTING ONLY)
