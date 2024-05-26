@@ -177,15 +177,7 @@ export class VerifyController {
       cid = await this.ipfsService.addFolder(repoPath);
     }
 
-    // await verifierService.setContract(
-    //   accountId,
-    //   cid,
-    //   checksum,
-    //   'rust',
-    //   entryPoint,
-    //   builderImage,
-    //   github,
-    // );
+    await verifierService.setContract(accountId, cid, checksum, 'rust');
 
     return res
       .status(HttpStatus.OK)

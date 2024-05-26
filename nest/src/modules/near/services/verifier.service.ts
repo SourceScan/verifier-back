@@ -1,7 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Account, Contract, connect, keyStores, utils } from 'near-api-js';
 import ContractData from '../interfaces/contract-data.interface';
-import GithubData from '../interfaces/github-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
 
 @Injectable()
@@ -69,9 +68,6 @@ export class VerifierService {
     cid: string,
     codeHash: string,
     lang: string,
-    entryPoint: string,
-    builderImage: string,
-    githubData?: GithubData,
   ): Promise<void> {
     if (!this.contract) {
       await this.initializeContract();
@@ -86,9 +82,6 @@ export class VerifierService {
           cid: cid,
           code_hash: codeHash,
           lang: lang,
-          entry_point: entryPoint,
-          builder_image: builderImage,
-          github: githubData,
         },
       });
 
