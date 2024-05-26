@@ -161,7 +161,7 @@ export class VerifyController {
     // Read the compiled WASM file
     const { checksum } = await this.tempService.readRustWasmFile(binaryPath);
     const targetPath = path.join(path.dirname(binaryPath), '../..');
-    this.tempService.deleteFolder(targetPath);
+    await this.tempService.deleteFolder(targetPath);
 
     if (rpcResponse.hash !== checksum) {
       return res.status(400).json({ message: 'Code hash mismatch' });
