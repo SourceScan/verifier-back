@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   HttpException,
-  HttpStatus,
   Inject,
   Post,
   Res,
@@ -88,13 +87,13 @@ export class VerifyController {
     const rpcResponse: any = await rpcService.viewCode(accountId);
     if (!rpcResponse) {
       return res
-        .status(200)
+        .status(400)
         .json({ message: 'Error while calling rpc method' });
     }
 
     // Check if the code hash is the same as the one in the verifier contract
     if (contractData && contractData.code_hash === rpcResponse.hash) {
-      return res.status(200).json({ message: "Code hash didn't change" });
+      return res.status(400).json({ message: "Code hash didn't change" });
     }
 
     // Get the contract metadata with contract_source_metadata method
@@ -108,7 +107,7 @@ export class VerifyController {
     // Check if the contract metadata is available
     if (!contractMetadata) {
       return res
-        .status(200)
+        .status(400)
         .json({ message: `No source metadata found for ${accountId}` });
     }
 
@@ -116,7 +115,7 @@ export class VerifyController {
     // Check if the build info is available
     if (!buildInfo) {
       return res
-        .status(200)
+        .status(400)
         .json({ message: `No build info found for ${accountId}` });
     }
 
@@ -165,11 +164,11 @@ export class VerifyController {
     this.tempService.deleteFolder(targetPath);
 
     if (rpcResponse.hash !== checksum) {
-      return res.status(200).json({ message: 'Code hash mismatch' });
+      return res.status(400).json({ message: 'Code hash mismatch' });
     }
 
     if (contractData && contractData.code_hash === checksum) {
-      return res.status(200).json({ message: "Code hash didn't change" });
+      return res.status(400).json({ message: "Code hash didn't change" });
     }
 
     let cid = '';
@@ -180,7 +179,7 @@ export class VerifyController {
     await verifierService.setContract(accountId, cid, checksum, 'rust');
 
     return res
-      .status(HttpStatus.OK)
+      .status(200)
       .json({ message: 'Contract verified successfully', checksum: checksum });
   }
 }
