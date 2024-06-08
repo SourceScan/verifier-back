@@ -33,8 +33,8 @@ export class VerifyRustDto {
   uploadToIpfs: boolean;
 
   @ApiProperty({
-    description: 'Whether to upload to IPFS',
-    example: false,
+    description: 'Number of block',
+    example: 165753012,
   })
   @IsOptional()
   @IsNumber()
