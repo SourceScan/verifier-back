@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class VerifyRustDto {
   @ApiProperty({
@@ -23,7 +29,16 @@ export class VerifyRustDto {
     example: false,
   })
   @IsNotEmpty()
+  @IsBoolean()
   uploadToIpfs: boolean;
+
+  @ApiProperty({
+    description: 'Whether to upload to IPFS',
+    example: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  blockId: number;
 }
 
 export class BuilderImageInfoResponse {

@@ -1,6 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { providers } from 'near-api-js';
-import { QueryResponseKind } from 'near-api-js/lib/providers/provider';
+import { BlockId, QueryResponseKind } from 'near-api-js/lib/providers/provider';
 import NearConfig from '../interfaces/near-config.interface';
 
 @Injectable()
@@ -22,33 +22,42 @@ export class RpcService {
     return String.fromCharCode(...byteArray);
   }
 
-  async viewCode(accountId: string): Promise<QueryResponseKind> {
+  async viewCode(
+    accountId: string,
+    blockId?: BlockId,
+  ): Promise<QueryResponseKind> {
     try {
       const response = await this.provider.query({
         request_type: 'view_code',
         account_id: accountId,
         finality: 'final',
+        blockId: blockId,
       });
 
       this.logger.log(`Code viewed for account ID: ${accountId}`);
+
       return response;
     } catch (error) {
       this.logger.error(
         `Error viewing code for account ID: ${accountId}`,
         error.stack,
       );
+
       throw new HttpException(error.message, 500);
     }
   }
 
+  // TODO: Fix args
   async callFunction(
     accountId: string,
     methodName: string,
+    blockId?: BlockId,
     args?: any[],
   ): Promise<any> {
     try {
       const response: any = await this.provider.query({
         request_type: 'call_function',
+        blockId: blockId,
         finality: 'final',
         account_id: accountId,
         method_name: methodName,
@@ -70,6 +79,7 @@ export class RpcService {
         `Error calling function ${methodName} for account ID: ${accountId}`,
         error.stack,
       );
+
       throw new HttpException(error.message, 500);
     }
   }

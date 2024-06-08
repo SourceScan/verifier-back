@@ -1,5 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Account, Contract, connect, keyStores, utils } from 'near-api-js';
+import { BlockId } from 'near-api-js/lib/providers/provider';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
 
@@ -38,7 +39,10 @@ export class VerifierService {
     }) as any;
   }
 
-  async getContract(accountId: string): Promise<ContractData | null> {
+  async getContract(
+    accountId: string,
+    blockId?: BlockId,
+  ): Promise<ContractData | null> {
     if (!this.contract) {
       await this.initializeContract();
     }
@@ -46,9 +50,15 @@ export class VerifierService {
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
     try {
-      const contractData: ContractData = await this.contract.get_contract({
-        account_id: accountId,
-      });
+      const contractData: ContractData = await this.contract.get_contract(
+        {
+          account_id: accountId,
+        },
+        {
+          blockId: blockId,
+          finality: 'final',
+        },
+      );
 
       this.logger.log(
         `Contract data fetched successfully for account ID: ${accountId}`,

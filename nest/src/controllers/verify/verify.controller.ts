@@ -64,7 +64,7 @@ export class VerifyController {
     type: ExecException,
   })
   async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
-    const { networkId, accountId, uploadToIpfs } = body;
+    const { networkId, accountId, uploadToIpfs, blockId } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -81,10 +81,11 @@ export class VerifyController {
     // Get the contract data from the verifier contract
     const contractData: ContractData = await verifierService.getContract(
       accountId,
+      blockId,
     );
 
     // Get the contract code from the RPC node
-    const rpcResponse: any = await rpcService.viewCode(accountId);
+    const rpcResponse: any = await rpcService.viewCode(accountId, blockId);
     if (!rpcResponse) {
       return res
         .status(400)
@@ -100,6 +101,7 @@ export class VerifyController {
     const contractMetadataResponse = await rpcService.callFunction(
       accountId,
       'contract_source_metadata',
+      blockId,
     );
 
     const contractMetadata: ContractMetadataDto =
