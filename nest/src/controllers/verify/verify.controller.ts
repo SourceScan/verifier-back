@@ -64,7 +64,7 @@ export class VerifyController {
     type: ExecException,
   })
   async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
-    const { networkId, accountId, uploadToIpfs, blockId } = body;
+    const { networkId, accountId, uploadToIpfs } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -78,6 +78,10 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
+    // Get the latest block height or specified from request body
+    const latestBlock = await rpcService.block();
+    const blockId = body.blockId || latestBlock.header.height;
+
     // Get the contract data from the verifier contract
     const contractData: ContractData = await verifierService.getContract(
       accountId,
@@ -90,6 +94,13 @@ export class VerifyController {
       return res
         .status(400)
         .json({ message: 'Error while calling rpc method' });
+    }
+
+    // Check if blockId is higher than the latest verification block height in the verifier contract
+    if (blockId && contractData && contractData.block_height > blockId) {
+      return res.status(400).json({
+        message: `${blockId} is lower than latest verification block height ${contractData.block_height}`,
+      });
     }
 
     // Check if the code hash is the same as the one in the verifier contract
@@ -178,7 +189,13 @@ export class VerifyController {
       cid = await this.ipfsService.addFolder(repoPath);
     }
 
-    await verifierService.setContract(accountId, cid, checksum, 'rust');
+    await verifierService.setContract(
+      accountId,
+      cid,
+      checksum,
+      blockId,
+      'rust',
+    );
 
     return res
       .status(200)

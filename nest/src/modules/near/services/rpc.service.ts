@@ -1,6 +1,10 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { providers } from 'near-api-js';
-import { BlockId, QueryResponseKind } from 'near-api-js/lib/providers/provider';
+import {
+  BlockId,
+  BlockResult,
+  QueryResponseKind,
+} from 'near-api-js/lib/providers/provider';
 import NearConfig from '../interfaces/near-config.interface';
 
 @Injectable()
@@ -20,6 +24,23 @@ export class RpcService {
 
   private byteArrayToString(byteArray: number[]): string {
     return String.fromCharCode(...byteArray);
+  }
+
+  async block(blockId?: BlockId): Promise<BlockResult> {
+    try {
+      const response = await this.provider.block({
+        finality: 'final',
+        blockId: blockId,
+      });
+
+      this.logger.log('Latest block details retrieved');
+
+      return response;
+    } catch (error) {
+      this.logger.error('Error retrieving latest block details', error.stack);
+
+      throw new HttpException(error.message, 500);
+    }
   }
 
   async viewCode(

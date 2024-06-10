@@ -77,6 +77,7 @@ export class VerifierService {
     accountId: string,
     cid: string,
     codeHash: string,
+    blockHeight: number,
     lang: string,
   ): Promise<void> {
     if (!this.contract) {
@@ -91,6 +92,7 @@ export class VerifierService {
           account_id: accountId,
           cid: cid,
           code_hash: codeHash,
+          block_height: blockHeight,
           lang: lang,
         },
       });
