@@ -1,6 +1,7 @@
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationError } from 'class-validator';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './filters/http-exception/http-exception.filter';
@@ -39,6 +40,20 @@ async function bootstrap() {
       transform: true, // Automatically transform payloads to be objects typed according to their DTO classes
       disableErrorMessages: false, // Optionally set this to true in production mode
       validateCustomDecorators: true, // Enable usage of custom decorators
+      exceptionFactory: (errors: ValidationError[]) => {
+        const detailedErrors = errors.map((error) => {
+          return {
+            property: error.property,
+            constraints: error.constraints,
+            children: error.children,
+          };
+        });
+        return new BadRequestException({
+          statusCode: 400,
+          message: 'Validation failed',
+          errors: detailedErrors,
+        });
+      },
     }),
   );
 
