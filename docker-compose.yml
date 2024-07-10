@@ -2,7 +2,7 @@ services:
   sscan-nest:
     build: 
       context: nest
-    container_name: sscan-nest
+    container_name: ${BRANCH_NAME}_sscan-nest
     restart: always
     networks:
       - nwk
@@ -16,7 +16,7 @@ services:
   
   sscan-ipfs:
     image: ipfs/go-ipfs:v0.24.0
-    container_name: sscan-ipfs
+    container_name: ${BRANCH_NAME}_sscan-ipfs
     restart: always
     environment:
       - IPFS_PROFILE=server
@@ -32,7 +32,7 @@ services:
   
   sscan-nginx:
     image: nginx:1.25
-    container_name: sscan-nginx
+    container_name: ${BRANCH_NAME}_sscan-nginx
     restart: always
     ports:
       - '${HOST}:${NGINX_PORT}:${NGINX_PORT}'
