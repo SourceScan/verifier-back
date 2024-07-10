@@ -9,7 +9,7 @@ services:
     networks:
       - nwk
     ports:
-      - '127.0.0.1:${NEST_PORT}:${NEST_PORT}'
+      - '${HOST}:${NEST_PORT}:${NEST_PORT}'
     volumes:
       - ./nest/scripts:/app/scripts
       - /var/run/docker.sock:/var/run/docker.sock
@@ -27,9 +27,9 @@ services:
     networks:
       - nwk
     ports:
-      - "127.0.0.1:${IPFS_PORT}:${IPFS_PORT}"
+      - "${HOST}:${IPFS_PORT}:${IPFS_PORT}"
       - "${SWARM_PORT}:${SWARM_PORT}"
-      - "127.0.0.1:${GATE_PORT}:${GATE_PORT}"
+      - "${HOST}:${GATE_PORT}:${GATE_PORT}"
     volumes:
       - ./docker-data/ipfs:/ipfsdata
   
@@ -38,7 +38,7 @@ services:
     container_name: sscan-nginx
     restart: always
     ports:
-      - '127.0.0.1:${NGINX_PORT}:${NGINX_PORT}'
+      - '${HOST}:${NGINX_PORT}:${NGINX_PORT}'
     networks:
       - nwk
     volumes:
