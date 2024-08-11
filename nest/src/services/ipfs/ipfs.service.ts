@@ -34,20 +34,18 @@ export class IpfsService {
       origins: origins,
     };
 
-    try {
-      this.logger.log('Sending pin request to QuickNode');
-      const response = await axios.post(this.quickNodeApiUrl, data, {
-        headers: {
-          'x-api-key': this.quickNodeApiKey,
-          'Content-Type': 'application/json',
-        },
-      });
-      this.logger.log(`Pinning response: ${JSON.stringify(response.data)}`);
-      return response.data;
-    } catch (error) {
-      this.logger.error(`Failed to pin to QuickNode: ${error.message}`);
-      throw new Error('Pinning to QuickNode failed');
-    }
+    this.logger.log('Sending pin request to QuickNode');
+
+    const response = await axios.post(this.quickNodeApiUrl, data, {
+      headers: {
+        'x-api-key': this.quickNodeApiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    this.logger.log(`Pinning response: ${JSON.stringify(response.data)}`);
+
+    return response.data;
   }
 
   async add(data: Buffer): Promise<AddResult> {

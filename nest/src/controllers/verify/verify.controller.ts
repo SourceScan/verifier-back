@@ -184,7 +184,20 @@ export class VerifyController {
 
     let cid = '';
     cid = await this.ipfsService.addFolder(repoPath);
-    await this.ipfsService.pinToQuickNode(cid, `${accountId}-${blockId}`);
+    // Pin the folder to IPFS provider
+    try {
+      await this.ipfsService.pinToQuickNode(cid, `${accountId}-${blockId}`);
+    } catch (error) {
+      if (
+        error.response.status !== 409 ||
+        error.response.data.message !== 'Object with cid already exists'
+      ) {
+        throw new HttpException(
+          error.message || 'IPFS pinning failed',
+          error.statusCode || 500,
+        );
+      }
+    }
 
     await verifierService.setContract(
       accountId,
