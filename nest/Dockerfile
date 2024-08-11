@@ -46,14 +46,10 @@ RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
 # Add Rust to the PATH environment variable for all subsequent commands
 ENV PATH="/tmp/cargo/bin:$PATH"
 
-# Install cargo-near from source-scan-integration branch
-RUN git clone https://github.com/SourceScan/cargo-near\
-    && cd ./cargo-near \
-    && git checkout source-scan-integration \
-    && cd ./cargo-near \
-    && cargo install --locked --path . \
-    && cd ../.. \
-    && rm -rf ./cargo-near
+# Install cargo-near 
+RUN git clone https://github.com/near/cargo-near \
+    && cargo install --locked --path cargo-near/cargo-near \
+    && rm -rf cargo-near
 
 WORKDIR /app
 
