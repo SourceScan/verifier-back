@@ -40,7 +40,9 @@ ENV RUSTUP_HOME=/usr/local/rustup
 ENV CARGO_HOME=/usr/local/cargo
 
 RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
-    && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+    && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
+    && ln -s $RUSTUP_HOME /root/.rustup \
+    && ln -s $CARGO_HOME /root/.cargo
 # Add Rust to the PATH environment variable for all subsequent commands
 ENV PATH="/usr/local/cargo/bin:$PATH"
 
