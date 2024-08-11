@@ -9,6 +9,7 @@ export class IpfsService {
     'https://api.quicknode.com/ipfs/rest/v1/pinning';
   private readonly quickNodeApiKey = process.env.QUICKNODE_API_KEY;
   private readonly ipfsHost = process.env.IPFS_HOST;
+  private readonly ipfsExternalIp = process.env.IPFS_EXTERNAL_IP;
   private readonly ipfsPort = process.env.IPFS_PORT;
   private readonly swarmPort = process.env.SWARM_PORT;
 
@@ -24,8 +25,8 @@ export class IpfsService {
 
   async pinToQuickNode(cid: string, name: string): Promise<any> {
     const origins = [
-      `/ip4/${this.ipfsHost}/tcp/${this.swarmPort}/p2p/SourcePeerId`,
-      `/ip4/${this.ipfsHost}/udp/${this.swarmPort}/quic/p2p/SourcePeerId`,
+      `/ip4/${this.ipfsExternalIp}/tcp/${this.swarmPort}/p2p/SourcePeerId`,
+      `/ip4/${this.ipfsExternalIp}/udp/${this.swarmPort}/quic/p2p/SourcePeerId`,
     ];
 
     const data = {
