@@ -23,7 +23,6 @@ import { ExecException } from '../../exceptions/exec.exception';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
 import { RpcService } from '../../modules/near/services/rpc.service';
 import { VerifierService } from '../../modules/near/services/verifier.service';
-import { BuilderInfoService } from '../../services/builder-info/builder-info.service';
 import { CompilerService } from '../../services/compiler/compiler.service';
 import { IpfsService } from '../../services/ipfs/ipfs.service';
 import { TempService } from '../../services/temp/temp.service';
@@ -37,7 +36,6 @@ export class VerifyController {
     private readonly githubService: GithubService,
     private readonly tempService: TempService,
     private readonly ipfsService: IpfsService,
-    private readonly builderInfoService: BuilderInfoService,
     @Inject('MainnetVerifierService')
     private readonly mainnetVerifierService: VerifierService,
     @Inject('TestnetVerifierService')
@@ -64,7 +62,7 @@ export class VerifyController {
     type: ExecException,
   })
   async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
-    const { networkId, accountId, uploadToIpfs } = body;
+    const { networkId, accountId } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -173,7 +171,7 @@ export class VerifyController {
 
     // Read the compiled WASM file
     const { checksum } = await this.tempService.readRustWasmFile(binaryPath);
-    const targetPath = path.join(path.dirname(binaryPath), '../..');
+    const targetPath = path.join(path.dirname(binaryPath), '..');
     await this.tempService.deleteFolder(targetPath);
 
     if (rpcResponse.hash !== checksum) {
@@ -185,8 +183,20 @@ export class VerifyController {
     }
 
     let cid = '';
-    if (uploadToIpfs) {
-      cid = await this.ipfsService.addFolder(repoPath);
+    cid = await this.ipfsService.addFolder(repoPath);
+    // Pin the folder to IPFS provider
+    try {
+      await this.ipfsService.pinToQuickNode(cid, `${accountId}-${blockId}`);
+    } catch (error) {
+      if (
+        error.response.status !== 409 ||
+        error.response.data.message !== 'Object with cid already exists'
+      ) {
+        throw new HttpException(
+          error.message || 'IPFS pinning failed',
+          error.statusCode || 500,
+        );
+      }
     }
 
     await verifierService.setContract(

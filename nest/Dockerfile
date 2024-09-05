@@ -36,24 +36,20 @@ RUN apk add --no-cache \
     bash
 
 # Install Rust
-ENV RUSTUP_HOME=/tmp/rustup
-ENV CARGO_HOME=/tmp/cargo
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
 
 RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
     && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
     && ln -s $RUSTUP_HOME /root/.rustup \
     && ln -s $CARGO_HOME /root/.cargo
 # Add Rust to the PATH environment variable for all subsequent commands
-ENV PATH="/tmp/cargo/bin:$PATH"
+ENV PATH="/usr/local/cargo/bin:$PATH"
 
-# Install cargo-near from source-scan-integration branch
-RUN git clone https://github.com/SourceScan/cargo-near\
-    && cd ./cargo-near \
-    && git checkout source-scan-integration \
-    && cd ./cargo-near \
-    && cargo install --locked --path . \
-    && cd ../.. \
-    && rm -rf ./cargo-near
+# Install cargo-near 
+RUN git clone https://github.com/near/cargo-near \
+    && cargo install --locked --path cargo-near/cargo-near \
+    && rm -rf cargo-near
 
 WORKDIR /app
 
