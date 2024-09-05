@@ -18,15 +18,7 @@ async function bootstrap() {
 
   // CORS setup
   app.enableCors({
-    origin: [
-      'https://near.org',
-      'https://test.near.org',
-      'https://near.social',
-      'https://test.near.social',
-      'https://api.sourcescan.dev',
-      'https://sourcescan.dev',
-      'https://testnet.sourcescan.dev',
-    ],
+    origin: ['*'],
     methods: 'GET,POST',
     allowedHeaders:
       'Origin, X-Requested-With, Content-Type, Accept, Authorization',
@@ -45,7 +37,7 @@ async function bootstrap() {
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SourceScan API')
-    .setVersion('2.0')
+    .setVersion('1.0')
     .addBearerAuth()
     .build();
   const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
