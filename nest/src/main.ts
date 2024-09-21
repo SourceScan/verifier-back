@@ -22,6 +22,7 @@ async function bootstrap() {
     origin: '*', // Allows any origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Include all methods as needed
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+    credentials: false, // Disable credentials
   });
 
   app.useGlobalPipes(
