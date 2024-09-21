@@ -16,8 +16,24 @@ upstream ipfs-gateway
 
 server
 {
-
 	listen ${NGINX_PORT};
+
+    # Global CORS headers for all routes
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+    add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept, Authorization' always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+    # Handle CORS preflight requests for all routes
+    if ($request_method = OPTIONS) {
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+        add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept, Authorization';
+        add_header 'Access-Control-Max-Age' 1728000;
+        add_header 'Content-Length' 0;
+        add_header 'Content-Type' 'text/plain charset=UTF-8';
+        return 204;
+    }
 
     location / {
         proxy_pass http://nest;
@@ -34,7 +50,6 @@ server
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
-		add_header 'Access-Control-Allow-Origin' '*';
     }
 
 	location /ipfs
