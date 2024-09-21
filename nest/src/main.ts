@@ -16,12 +16,12 @@ async function bootstrap() {
   // Helmet setup
   app.use(helmet());
 
-  // CORS setup
+  // Expanded CORS setup
   app.enableCors({
-    origin: ['*'],
-    methods: 'GET,POST',
-    allowedHeaders:
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    origin: '*', // Allows any origin
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Include all methods as needed
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+    credentials: false, // Disable credentials
   });
 
   app.useGlobalPipes(
