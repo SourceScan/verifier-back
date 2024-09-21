@@ -19,11 +19,6 @@ server
 	listen ${NGINX_PORT};
 
     location / {
-        # Add header in the location block
-        add_header 'Access-Control-Allow-Origin' '*' always;
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-        add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept, Authorization';
-
         proxy_pass http://nest;
         proxy_read_timeout 10m; 
         proxy_connect_timeout 1m; 
