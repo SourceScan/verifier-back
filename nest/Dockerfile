@@ -49,7 +49,7 @@ ENV PATH="/usr/local/cargo/bin:$PATH"
 # Install cargo-near 
 RUN git clone https://github.com/near/cargo-near \
     && cd cargo-near \
-    && git checkout c9210e7705d819638e15e3a7309851acfa7d7b0e \
+    && git checkout $CARGO_NEAR_COMMIT_SHA \
     && cargo install --locked --path cargo-near \
     && cd .. \
     && rm -rf cargo-near
