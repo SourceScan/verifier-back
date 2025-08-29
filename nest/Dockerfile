@@ -1,5 +1,5 @@
 # Building layer
-FROM amd64/node:20-alpine as development
+FROM node:20-alpine as development
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM amd64/docker:dind as production
+FROM docker:dind as production
 
 # Install dependencies for Rust, build tools, and HIDAPI
 RUN apk add --no-cache \
@@ -46,13 +46,8 @@ RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
 # Add Rust to the PATH environment variable for all subsequent commands
 ENV PATH="/usr/local/cargo/bin:$PATH"
 
-# Install cargo-near 
-RUN git clone https://github.com/near/cargo-near \
-    && cd cargo-near \
-    && git checkout $CARGO_NEAR_COMMIT_SHA \
-    && cargo install --locked --path cargo-near \
-    && cd .. \
-    && rm -rf cargo-near
+# Install cargo-near from crates.io (latest version)
+RUN cargo install cargo-near --locked
 
 WORKDIR /app
 

@@ -145,29 +145,56 @@ export class VerifyController {
 
     // TODO: move to temp service
     const entryPath = path.join(repoPath, buildInfo.contract_path);
-    // Compile the Rust code
-    const { stdout } = await this.compilerService.compileRust(
-      entryPath,
-      // TODO: get command from buildInfo without args check whitelist
-      `cargo near build`,
-    );
+    
+    // Determine if we should use Docker compilation based on build_environment
+    const shouldUseDocker = buildInfo.build_environment && 
+                          (buildInfo.build_environment.includes('sourcescan/cargo-near') || 
+                           buildInfo.build_environment.includes('docker'));
+    
+    // Compile the Rust code using appropriate method
+    const { stdout } = shouldUseDocker
+      ? await this.compilerService.compileRustDocker(entryPath, buildInfo)
+      : await this.compilerService.compileRust(
+          entryPath,
+          buildInfo.build_command?.join(' ') || 'cargo near build',
+          buildInfo.variant,
+        );
 
     // TODO: move to temp service
     // Extracting the binary path from the compilation output
-    const binaryPathMatch = stdout
-      .join('\n')
-      .match(
-        new RegExp(
-          `Binary:\\s*(${repoPath.replace(
-            /[-/\\^$*+?.()|[\]{}]/g,
-            '\\$&',
-          )}.*?\\.wasm)`,
-        ),
-      );
-    if (!binaryPathMatch) {
-      throw new Error('Binary path not found in compilation output');
+    let binaryPath: string;
+    
+    if (shouldUseDocker) {
+      // For Docker compilation, the output contains workspace paths
+      // Format: "Binary: /workspace/contract/target/near/xxx.wasm"
+      const dockerBinaryMatch = stdout
+        .join('\n')
+        .match(/Binary:\s*(\/workspace\/.*?\.wasm)/);
+      
+      if (dockerBinaryMatch) {
+        // Replace /workspace with repoPath to get the actual host path
+        const workspacePath = dockerBinaryMatch[1];
+        binaryPath = workspacePath.replace('/workspace', repoPath);
+      } else {
+        throw new Error('Binary path not found in Docker compilation output');
+      }
+    } else {
+      // For local compilation, use the existing logic
+      const binaryPathMatch = stdout
+        .join('\n')
+        .match(
+          new RegExp(
+            `Binary:\\s*(${repoPath.replace(
+              /[-/\\^$*+?.()|[\]{}]/g,
+              '\\$&',
+            )}.*?\\.wasm)`,
+          ),
+        );
+      if (!binaryPathMatch) {
+        throw new Error('Binary path not found in compilation output');
+      }
+      binaryPath = binaryPathMatch[1];
     }
-    const binaryPath = binaryPathMatch[1];
 
     // Read the compiled WASM file
     const { checksum } = await this.tempService.readRustWasmFile(binaryPath);
