@@ -111,6 +111,10 @@ export class VerifyController {
         return res.status(400).json({ message: "Code hash didn't change" });
       }
       
+      // Get the actual block height from the contract code query
+      const codeResponse = await rpcService.viewCode(accountId, blockId);
+      const blockHeight = (codeResponse as any).block_height;
+      
       // Get contract metadata for IPFS pinning
       const contractMetadataResponse = await rpcService.callFunction(
         accountId,
@@ -169,7 +173,7 @@ export class VerifyController {
         accountId,
         cid,
         checksum,
-        blockId,
+        blockHeight,
         'rust',
       );
 
