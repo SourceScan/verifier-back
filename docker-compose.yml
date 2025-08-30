@@ -2,6 +2,7 @@ services:
   sscan-nest:
     build: 
       context: nest
+    platform: linux/amd64
     container_name: ${BRANCH_NAME}_sscan-nest
     restart: always
     networks:

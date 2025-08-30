@@ -6,6 +6,7 @@ import {
   Post,
   Res,
   UseFilters,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiExtraModels,
@@ -31,6 +32,8 @@ import { TempService } from '../../services/temp/temp.service';
 @ApiExtraModels(HttpException)
 @Controller('verify')
 export class VerifyController {
+  private logger = new Logger(VerifyController.name);
+  
   constructor(
     private readonly compilerService: CompilerService,
     private readonly githubService: GithubService,
@@ -62,7 +65,7 @@ export class VerifyController {
     type: ExecException,
   })
   async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
-    const { networkId, accountId } = body;
+    const { networkId, accountId, blockId } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -76,166 +79,106 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    // Get the latest block height or specified from request body
-    const latestBlock = await rpcService.block();
-    const blockId = body.blockId || latestBlock.header.height;
-
-    // Get the contract data from the verifier contract
-    const contractData: ContractData = await verifierService.getContract(
-      accountId,
-      blockId,
-    );
-
-    // Get the contract code from the RPC node
-    const rpcResponse: any = await rpcService.viewCode(accountId, blockId);
-    if (!rpcResponse) {
-      return res
-        .status(400)
-        .json({ message: 'Error while calling rpc method' });
-    }
-
-    // Check if blockId is higher than the latest verification block height in the verifier contract
-    if (blockId && contractData && contractData.block_height > blockId) {
-      return res.status(400).json({
-        message: `${blockId} is lower than latest verification block height ${contractData.block_height}`,
-      });
-    }
-
-    // Check if the code hash is the same as the one in the verifier contract
-    if (contractData && contractData.code_hash === rpcResponse.hash) {
-      return res.status(400).json({ message: "Code hash didn't change" });
-    }
-
-    // Get the contract metadata with contract_source_metadata method
-    const contractMetadataResponse = await rpcService.callFunction(
-      accountId,
-      'contract_source_metadata',
-      blockId,
-    );
-
-    const contractMetadata: ContractMetadataDto =
-      contractMetadataResponse.result;
-    // Check if the contract metadata is available
-    if (!contractMetadata) {
-      return res
-        .status(400)
-        .json({ message: `No source metadata found for ${accountId}` });
-    }
-
-    const buildInfo: BuildInfo = contractMetadata.build_info;
-    // Check if the build info is available
-    if (!buildInfo) {
-      return res
-        .status(400)
-        .json({ message: `No build info found for ${accountId}` });
-    }
-
-    // Create a temporary folder to clone the repository
-    const tempFolder = await this.tempService.createFolder();
-
-    // Extract the repository URL and the commit hash
-    const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
-      buildInfo.source_code_snapshot,
-    );
-    // Clone the repository and checkout the commit
-    await this.githubService.clone(tempFolder, repoUrl);
-    // Checkout the commit in repo
-    const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-    await this.githubService.checkout(repoPath, sha);
-
-    // TODO: move to temp service
-    const entryPath = path.join(repoPath, buildInfo.contract_path);
-    
-    // Determine if we should use Docker compilation based on build_environment
-    const shouldUseDocker = buildInfo.build_environment && 
-                          (buildInfo.build_environment.includes('sourcescan/cargo-near') || 
-                           buildInfo.build_environment.includes('docker'));
-    
-    // Compile the Rust code using appropriate method
-    const { stdout } = shouldUseDocker
-      ? await this.compilerService.compileRustDocker(entryPath, buildInfo)
-      : await this.compilerService.compileRust(
-          entryPath,
-          buildInfo.build_command?.join(' ') || 'cargo near build',
-          buildInfo.variant,
-        );
-
-    // TODO: move to temp service
-    // Extracting the binary path from the compilation output
-    let binaryPath: string;
-    
-    if (shouldUseDocker) {
-      // For Docker compilation, the output contains workspace paths
-      // Format: "Binary: /workspace/contract/target/near/xxx.wasm"
-      const dockerBinaryMatch = stdout
-        .join('\n')
-        .match(/Binary:\s*(\/workspace\/.*?\.wasm)/);
-      
-      if (dockerBinaryMatch) {
-        // Replace /workspace with repoPath to get the actual host path
-        const workspacePath = dockerBinaryMatch[1];
-        binaryPath = workspacePath.replace('/workspace', repoPath);
-      } else {
-        throw new Error('Binary path not found in Docker compilation output');
-      }
-    } else {
-      // For local compilation, use the existing logic
-      const binaryPathMatch = stdout
-        .join('\n')
-        .match(
-          new RegExp(
-            `Binary:\\s*(${repoPath.replace(
-              /[-/\\^$*+?.()|[\]{}]/g,
-              '\\$&',
-            )}.*?\\.wasm)`,
-          ),
-        );
-      if (!binaryPathMatch) {
-        throw new Error('Binary path not found in compilation output');
-      }
-      binaryPath = binaryPathMatch[1];
-    }
-
-    // Read the compiled WASM file
-    const { checksum } = await this.tempService.readRustWasmFile(binaryPath);
-    const targetPath = path.join(path.dirname(binaryPath), '..');
-    await this.tempService.deleteFolder(targetPath);
-
-    if (rpcResponse.hash !== checksum) {
-      return res.status(400).json({ message: 'Code hash mismatch' });
-    }
-
-    if (contractData && contractData.code_hash === checksum) {
-      return res.status(400).json({ message: "Code hash didn't change" });
-    }
-
-    let cid = '';
-    cid = await this.ipfsService.addFolder(repoPath);
-    // Pin the folder to IPFS provider
+    let contractData: ContractData = null;
     try {
-      await this.ipfsService.pinToQuickNode(cid, `${accountId}-${blockId}`);
+      contractData = await verifierService.getContract(accountId);
     } catch (error) {
-      if (
-        error.response.status !== 409 ||
-        error.response.data.message !== 'Object with cid already exists'
-      ) {
-        throw new HttpException(
-          error.message || 'IPFS pinning failed',
-          error.statusCode || 500,
-        );
-      }
+      // Contract not found in verifier, continue
     }
 
-    await verifierService.setContract(
-      accountId,
-      cid,
-      checksum,
-      blockId,
-      'rust',
-    );
+    // Use near-cli-rs to verify the contract
+    try {
+      const { stdout } = await this.compilerService.verifyContract(accountId, networkId);
+      
+      // Parse verification output
+      const output = stdout.join('\n');
+      
+      // Check if verification was successful
+      if (!output.includes('The code obtained from the contract account ID and the code calculated from the repository are the same')) {
+        return res.status(400).json({ message: 'Contract verification failed' });
+      }
+      
+      // Extract checksum from output
+      const checksumMatch = output.match(/Contract code hash:\s*([A-Za-z0-9]+)/);
+      const checksum = checksumMatch ? checksumMatch[1] : null;
+      
+      if (!checksum) {
+        return res.status(400).json({ message: 'Could not extract contract hash from verification output' });
+      }
+      
+      // Check if the code hash is the same as the one in the verifier contract
+      if (contractData && contractData.code_hash === checksum) {
+        return res.status(400).json({ message: "Code hash didn't change" });
+      }
+      
+      // Get contract metadata for IPFS pinning
+      const contractMetadataResponse = await rpcService.callFunction(
+        accountId,
+        'contract_source_metadata',
+        blockId,
+      );
 
-    return res
-      .status(200)
-      .json({ message: 'Contract verified successfully', checksum: checksum });
+      const contractMetadata: ContractMetadataDto =
+        contractMetadataResponse.result;
+      
+      if (!contractMetadata || !contractMetadata.build_info) {
+        return res
+          .status(400)
+          .json({ message: `No source metadata found for ${accountId}` });
+      }
+
+      const buildInfo: BuildInfo = contractMetadata.build_info;
+      
+      // Extract the repository URL and the commit hash
+      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+        buildInfo.source_code_snapshot,
+      );
+      
+      // Create a temporary folder to clone the repository for IPFS
+      const tempFolder = await this.tempService.createFolder();
+      
+      // Clone the repository and checkout the commit
+      await this.githubService.clone(tempFolder, repoUrl);
+      const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
+      await this.githubService.checkout(repoPath, sha);
+      
+      // Pin to IPFS
+      let cid = '';
+      cid = await this.ipfsService.addFolder(repoPath);
+      
+      // Pin the folder to IPFS provider
+      try {
+        await this.ipfsService.pinToQuickNode(cid, `${accountId}-${blockId || 'latest'}`);
+      } catch (error) {
+        if (
+          error.response?.status !== 409 ||
+          error.response?.data?.message !== 'Object with cid already exists'
+        ) {
+          throw new HttpException(
+            error.message || 'IPFS pinning failed',
+            error.statusCode || 500,
+          );
+        }
+      }
+
+      // Clean up temp folder
+      await this.tempService.deleteFolder(tempFolder);
+
+      // Store verification result
+      await verifierService.setContract(
+        accountId,
+        cid,
+        checksum,
+        blockId,
+        'rust',
+      );
+
+      return res
+        .status(200)
+        .json({ message: 'Contract verified successfully', checksum: checksum });
+    } catch (error) {
+      this.logger.error(`Verification error: ${error.message}`);
+      return res.status(500).json({ message: error.message });
+    }
   }
 }

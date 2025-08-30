@@ -46,8 +46,11 @@ RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
 # Add Rust to the PATH environment variable for all subsequent commands
 ENV PATH="/usr/local/cargo/bin:$PATH"
 
-# Install cargo-near from crates.io (latest version)
-RUN cargo install cargo-near --locked
+# Install near-cli-rs for contract verification
+RUN cargo install near-cli-rs --locked
+
+# Set environment variable for near-cli-rs to run in non-interactive mode
+ENV NEAR_CI=1
 
 WORKDIR /app
 
