@@ -32,12 +32,14 @@ export class TempService {
     return folder;
   }
 
-  async checkFolder(folderPath: string): Promise<boolean> {
+  async checkFolder(folderPath: string, silent = false): Promise<boolean> {
     try {
       await fs.access(folderPath, fs.constants.F_OK);
       return true;
     } catch (err) {
-      this.logger.error(`Error accessing ${folderPath}: ${err.message}`);
+      if (!silent) {
+        this.logger.error(`Error accessing ${folderPath}: ${err.message}`);
+      }
       return false;
     }
   }
@@ -75,12 +77,14 @@ export class TempService {
   @Cron(CronExpression.EVERY_MINUTE)
   async handleCleanup() {
     for (const [folder, creationTime] of this.folderCreationTimes) {
+      // 60000ms = 1 minute, so cleanup after JWT_EXPIRATION minutes
       if (
         new Date().getTime() - creationTime.getTime() >
-        6000 * parseInt(process.env.JWT_EXPIRATION)
+        60000 * parseInt(process.env.JWT_EXPIRATION)
       ) {
         try {
-          const exists = await this.checkFolder(folder);
+          // Use silent mode - folder may already be deleted by verification process
+          const exists = await this.checkFolder(folder, true);
           if (exists) {
             await this.deleteFolder(folder);
           }
