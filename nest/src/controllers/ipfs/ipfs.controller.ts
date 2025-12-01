@@ -1,5 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { IpfsService } from '../../services/ipfs/ipfs.service';
 
 @ApiTags('ipfs')
@@ -10,7 +15,11 @@ export class IpfsController {
   @Get('structure')
   @ApiOperation({ summary: 'Get folder structure from IPFS CID' })
   @ApiQuery({ name: 'cid', required: true, description: 'IPFS CID' })
-  @ApiQuery({ name: 'path', required: false, description: 'Path within the CID' })
+  @ApiQuery({
+    name: 'path',
+    required: false,
+    description: 'Path within the CID',
+  })
   @ApiOkResponse({ description: 'Folder structure retrieved successfully' })
   async getFolderStructure(
     @Query('cid') cid: string,
