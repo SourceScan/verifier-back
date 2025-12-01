@@ -50,12 +50,16 @@ services:
       - nwk
     volumes:
       - ./nginx/:/etc/nginx/templates/
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./nginx/scripts/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    command: ["nginx", "-g", "daemon off;"]
     environment:
       - NGINX_PORT=${NGINX_PORT}
       - NEST_PORT=${NEST_PORT}
       - GATE_PORT=${GATE_PORT}
       - IPFS_PORT=${IPFS_PORT}
+      - IPFS_ADMIN_USER=${IPFS_ADMIN_USER}
+      - IPFS_ADMIN_PASS=${IPFS_ADMIN_PASS}
     depends_on:
       - sscan-nest
       - sscan-ipfs

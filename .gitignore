@@ -52,5 +52,3 @@ docker-data
 
 dist/
 
-# Auth
-nginx/.htpasswd
