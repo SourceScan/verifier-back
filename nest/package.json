@@ -24,8 +24,9 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.0.0",
-    "axios": "^1.9.0",
     "@scure/base": "^1.2.4",
+    "axios": "^1.9.0",
+    "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "form-data": "^4.0.1",
     "helmet": "^8.0.0",
@@ -35,20 +36,20 @@
     "rxjs": "^7.8.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
-    "@eslint/js": "^9.18.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-prettier": "^5.2.0",
-    "typescript-eslint": "^8.20.0",
     "jest": "^30.0.0",
     "prettier": "^3.4.0",
     "ts-jest": "^29.2.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.20.0"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -63,7 +64,9 @@
         "ts-jest",
         {
           "diagnostics": {
-            "ignoreCodes": [151002]
+            "ignoreCodes": [
+              151002
+            ]
           }
         }
       ]
