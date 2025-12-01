@@ -1,5 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { Account, Contract, connect, keyStores, utils } from 'near-api-js';
+import { Account, Contract, utils, providers } from 'near-api-js';
+import { KeyPairSigner } from '@near-js/signers';
 import { KeyPairString } from '@near-js/crypto';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
@@ -7,29 +8,24 @@ import NearConfig from '../interfaces/near-config.interface';
 @Injectable()
 export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
-  private readonly keyStore: InstanceType<typeof keyStores.InMemoryKeyStore>;
   private account: Account;
   private contract: any;
 
   constructor(private config: NearConfig) {
-    const keyPair = utils.KeyPair.fromString(
-      config.privateKey as KeyPairString,
-    );
-
-    this.keyStore = new keyStores.InMemoryKeyStore();
-    this.keyStore.setKey(config.networkId, config.accountId, keyPair);
-
     this.initialize();
   }
 
-  private async initialize() {
-    const near = await connect({
-      keyStore: this.keyStore,
-      networkId: this.config.networkId,
-      nodeUrl: this.config.nodeUrl,
-    });
+  private initialize() {
+    const keyPair = utils.KeyPair.fromString(
+      this.config.privateKey as KeyPairString,
+    );
 
-    this.account = await near.account(this.config.accountId);
+    const provider = new providers.JsonRpcProvider({
+      url: this.config.nodeUrl,
+    });
+    const signer = new KeyPairSigner(keyPair);
+
+    this.account = new Account(this.config.accountId, provider, signer);
   }
 
   async initializeContract(): Promise<void> {

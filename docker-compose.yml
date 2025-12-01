@@ -16,7 +16,7 @@ services:
     privileged: true
 
   sscan-ipfs:
-    image: ipfs/kubo:v0.32.1
+    image: ipfs/kubo:v0.39.0
     container_name: ${BRANCH_NAME:-main}_sscan-ipfs
     restart: always
     environment:

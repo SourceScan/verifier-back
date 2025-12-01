@@ -66,4 +66,14 @@ server {
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
     }
+
+    # IPFS WebUI redirect handler (protected with basic auth)
+    location /webui {
+        auth_basic "IPFS Admin";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass http://ipfs_api/webui;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 }
