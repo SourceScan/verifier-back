@@ -1,16 +1,12 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { providers } from 'near-api-js';
-import {
-  BlockId,
-  BlockResult,
-  QueryResponseKind,
-} from 'near-api-js/lib/providers/provider';
+import { BlockResult, QueryResponseKind } from '@near-js/types';
 import NearConfig from '../interfaces/near-config.interface';
 
 @Injectable()
 export class RpcService {
   private readonly logger = new Logger(RpcService.name);
-  private provider: providers.Provider;
+  private provider: InstanceType<typeof providers.JsonRpcProvider>;
 
   constructor(private config: NearConfig) {
     this.initialize();
@@ -26,12 +22,11 @@ export class RpcService {
     return String.fromCharCode(...byteArray);
   }
 
-  async block(blockId?: BlockId): Promise<BlockResult> {
+  async block(blockId?: number): Promise<BlockResult> {
     try {
-      const response = await this.provider.block({
-        finality: 'final',
-        blockId: blockId,
-      });
+      const response = await this.provider.block(
+        blockId ? { blockId: blockId.toString() } : { finality: 'final' },
+      );
 
       this.logger.log('Latest block details retrieved');
 
@@ -45,15 +40,21 @@ export class RpcService {
 
   async viewCode(
     accountId: string,
-    blockId?: BlockId,
+    blockId?: number,
   ): Promise<QueryResponseKind> {
     try {
-      const response = await this.provider.query({
+      const queryParams: any = {
         request_type: 'view_code',
         account_id: accountId,
-        finality: 'final',
-        blockId: blockId,
-      });
+      };
+
+      if (blockId) {
+        queryParams.block_id = blockId;
+      } else {
+        queryParams.finality = 'final';
+      }
+
+      const response = await this.provider.query(queryParams);
 
       this.logger.log(`Code viewed for account ID: ${accountId}`);
 
@@ -68,22 +69,27 @@ export class RpcService {
     }
   }
 
-  // TODO: Fix args
   async callFunction(
     accountId: string,
     methodName: string,
-    blockId?: BlockId,
+    blockId?: number,
     args?: any[],
   ): Promise<any> {
     try {
-      const response: any = await this.provider.query({
+      const queryParams: any = {
         request_type: 'call_function',
-        blockId: blockId,
-        finality: 'final',
         account_id: accountId,
         method_name: methodName,
         args_base64: args ? Buffer.from(args).toString('base64') : '',
-      });
+      };
+
+      if (blockId) {
+        queryParams.block_id = blockId;
+      } else {
+        queryParams.finality = 'final';
+      }
+
+      const response: any = await this.provider.query(queryParams);
 
       this.logger.log(
         `Function ${methodName} called for account ID: ${accountId}`,

@@ -1,5 +1,5 @@
-# Building layer
-FROM node:20-alpine as development
+# Build stage
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM docker:dind as production
+FROM docker:dind AS production
 
 # Install dependencies for Rust, build tools, and HIDAPI
 RUN apk add --no-cache \
@@ -31,7 +31,7 @@ RUN apk add --no-cache \
     protobuf \
     eudev-dev \
     build-base \
-    pkgconfig \ 
+    pkgconfig \
     linux-headers \
     bash
 
@@ -54,8 +54,8 @@ ENV NEAR_CI=1
 
 WORKDIR /app
 
-# Copy node and npm from development
-COPY --from=development /usr/local /usr/local
+# Copy node and npm from build stage
+COPY --from=build /usr/local /usr/local
 
 # Copy dependencies files
 COPY package*.json ./
@@ -64,7 +64,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Copy production build
-COPY --from=development /app/dist/ ./dist/
+COPY --from=build /app/dist/ ./dist/
 
 # Start the application when dockerd is ready
 CMD sh -c "dockerd & while (! docker stats --no-stream ); do sleep 1; done && node dist/main.js"

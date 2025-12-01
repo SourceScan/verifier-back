@@ -30,8 +30,8 @@ describe('ExecService', () => {
 
     await expect(service.executeCommand('echo "Hello World"')).resolves.toEqual(
       {
-        stdout: 'success',
-        stderr: '',
+        stdout: ['success'],
+        stderr: [],
       },
     );
   });

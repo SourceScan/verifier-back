@@ -1,18 +1,20 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Account, Contract, connect, keyStores, utils } from 'near-api-js';
-import { BlockId } from 'near-api-js/lib/providers/provider';
+import { KeyPairString } from '@near-js/crypto';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
 
 @Injectable()
 export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
-  private readonly keyStore: keyStores.InMemoryKeyStore;
+  private readonly keyStore: InstanceType<typeof keyStores.InMemoryKeyStore>;
   private account: Account;
   private contract: any;
 
   constructor(private config: NearConfig) {
-    const keyPair = utils.KeyPair.fromString(config.privateKey);
+    const keyPair = utils.KeyPair.fromString(
+      config.privateKey as KeyPairString,
+    );
 
     this.keyStore = new keyStores.InMemoryKeyStore();
     this.keyStore.setKey(config.networkId, config.accountId, keyPair);
@@ -25,24 +27,20 @@ export class VerifierService {
       keyStore: this.keyStore,
       networkId: this.config.networkId,
       nodeUrl: this.config.nodeUrl,
-      walletUrl: this.config.walletUrl,
-      helperUrl: this.config.helperUrl,
     });
 
-    this.account = new Account(near.connection, this.config.accountId);
+    this.account = await near.account(this.config.accountId);
   }
 
   async initializeContract(): Promise<void> {
     this.contract = new Contract(this.account, this.account.accountId, {
       viewMethods: ['get_contract'],
       changeMethods: ['set_contract'],
+      useLocalViewExecution: false,
     }) as any;
   }
 
-  async getContract(
-    accountId: string,
-    blockId?: BlockId,
-  ): Promise<ContractData | null> {
+  async getContract(accountId: string): Promise<ContractData | null> {
     if (!this.contract) {
       await this.initializeContract();
     }
@@ -50,15 +48,9 @@ export class VerifierService {
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
     try {
-      const contractData: ContractData = await this.contract.get_contract(
-        {
-          account_id: accountId,
-        },
-        {
-          blockId: blockId,
-          finality: 'final',
-        },
-      );
+      const contractData: ContractData = await this.contract.get_contract({
+        account_id: accountId,
+      });
 
       this.logger.log(
         `Contract data fetched successfully for account ID: ${accountId}`,

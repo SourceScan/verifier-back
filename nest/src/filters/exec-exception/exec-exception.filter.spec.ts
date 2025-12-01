@@ -12,8 +12,8 @@ describe('ExecExceptionFilter', () => {
 
   it('should format the response correctly for ExecException', () => {
     const mockCommand = 'test-command';
-    const mockStderr = 'error message';
-    const mockStdout = 'output message';
+    const mockStderr = ['error message'];
+    const mockStdout = ['output message'];
     const exception = new ExecException(
       mockCommand,
       'Error',

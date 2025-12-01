@@ -24,15 +24,15 @@ describe('CompilerService', () => {
   });
 
   it('should compile Rust code successfully', async () => {
-    const mockOutput = 'Rust compilation output';
+    const mockOutput = ['Rust compilation output'];
     jest
       .spyOn(execService, 'executeCommand')
-      .mockResolvedValue({ stderr: '', stdout: mockOutput });
+      .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
-    const result = await compilerService.compileRust('sourcePath', 'destPath');
-    expect(result.stdout).toBe(mockOutput);
+    const result = await compilerService.compileRust('sourcePath', 'buildCommand');
+    expect(result.stdout).toEqual(mockOutput);
     expect(execService.executeCommand).toHaveBeenCalledWith(
-      'docker exec contract-builder sh /app/scripts/compiler/rust.sh sourcePath destPath',
+      'sh /app/scripts/compiler/rust.sh sourcePath "buildCommand"',
     );
   });
 
@@ -41,18 +41,18 @@ describe('CompilerService', () => {
     jest.spyOn(execService, 'executeCommand').mockRejectedValue(error);
 
     await expect(
-      compilerService.compileRust('sourcePath', 'destPath'),
+      compilerService.compileRust('sourcePath', 'buildCommand'),
     ).rejects.toThrow(error);
   });
 
   it('should compile TypeScript code successfully', async () => {
-    const mockOutput = 'TypeScript compilation output';
+    const mockOutput = ['TypeScript compilation output'];
     jest
       .spyOn(execService, 'executeCommand')
-      .mockResolvedValue({ stderr: '', stdout: mockOutput });
+      .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
     const result = await compilerService.compileTypeScript('sourcePath');
-    expect(result.stdout).toBe(mockOutput);
+    expect(result.stdout).toEqual(mockOutput);
     expect(execService.executeCommand).toHaveBeenCalledWith(
       'sh /app/scripts/compiler/ts.sh sourcePath',
     );
