@@ -29,7 +29,10 @@ describe('CompilerService', () => {
       .spyOn(execService, 'executeCommand')
       .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
-    const result = await compilerService.compileRust('sourcePath', 'buildCommand');
+    const result = await compilerService.compileRust(
+      'sourcePath',
+      'buildCommand',
+    );
     expect(result.stdout).toEqual(mockOutput);
     expect(execService.executeCommand).toHaveBeenCalledWith(
       'sh /app/scripts/compiler/rust.sh sourcePath "buildCommand"',

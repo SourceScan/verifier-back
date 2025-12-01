@@ -1,6 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import * as bs58 from 'bs58';
+import { base58 } from '@scure/base';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -109,7 +109,7 @@ export class TempService {
       // Calculate SHA-256 hash
       const hash = crypto.createHash('sha256');
       hash.update(wasmFileData);
-      const checksum = bs58.encode(hash.digest());
+      const checksum = base58.encode(hash.digest());
 
       return { wasmBase64, checksum };
     } catch (error) {
