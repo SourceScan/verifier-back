@@ -1,6 +1,6 @@
 services:
   sscan-nest:
-    build: 
+    build:
       context: nest
     platform: linux/amd64
     container_name: ${BRANCH_NAME}_sscan-nest
@@ -14,25 +14,34 @@ services:
     env_file:
       - .env
     privileged: true
-  
+
   sscan-ipfs:
-    image: ipfs/go-ipfs:v0.24.0
+    image: ipfs/kubo:v0.32.1
     container_name: ${BRANCH_NAME}_sscan-ipfs
     restart: always
     environment:
       - IPFS_PROFILE=server
       - IPFS_PATH=/ipfsdata
+      - IPFS_EXTERNAL_IP=${IPFS_EXTERNAL_IP}
+      - SWARM_PORT=${SWARM_PORT}
     networks:
       - nwk
     ports:
-      - "127.0.0.1:${IPFS_PORT}:${IPFS_PORT}"
-      - "${SWARM_PORT}:${SWARM_PORT}"
-      - "127.0.0.1:${GATE_PORT}:${GATE_PORT}"
+      - "${SWARM_PORT}:4001"
+      - "${SWARM_PORT}:4001/udp"
+      - "127.0.0.1:${IPFS_PORT}:5001"
+      - "127.0.0.1:${GATE_PORT}:8080"
     volumes:
       - ./docker-data/ipfs:/ipfsdata
-  
+      - ./ipfs/001-configure.sh:/container-init.d/001-configure.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ipfs swarm peers | head -1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   sscan-nginx:
-    image: nginx:1.25
+    image: nginx:1.27
     container_name: ${BRANCH_NAME}_sscan-nginx
     restart: always
     ports:
@@ -41,10 +50,15 @@ services:
       - nwk
     volumes:
       - ./nginx/:/etc/nginx/templates/
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     environment:
       - NGINX_PORT=${NGINX_PORT}
       - NEST_PORT=${NEST_PORT}
       - GATE_PORT=${GATE_PORT}
+      - IPFS_PORT=${IPFS_PORT}
+    depends_on:
+      - sscan-nest
+      - sscan-ipfs
 
 networks:
   nwk:

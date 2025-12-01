@@ -52,8 +52,7 @@ async function bootstrap() {
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SourceScan API')
-    .setVersion('2.0')
-    .addBearerAuth()
+    .setVersion('3.0')
     .build();
   const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('/', app, swaggerDoc);
