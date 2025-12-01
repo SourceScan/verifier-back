@@ -1,7 +1,9 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { Account, Contract, utils, providers } from 'near-api-js';
+import { Account, utils } from 'near-api-js';
+import { JsonRpcProvider } from '@near-js/providers';
 import { KeyPairSigner } from '@near-js/signers';
 import { KeyPairString } from '@near-js/crypto';
+import { actionCreators } from '@near-js/transactions';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
 
@@ -9,7 +11,7 @@ import NearConfig from '../interfaces/near-config.interface';
 export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
   private account: Account;
-  private contract: any;
+  private provider: JsonRpcProvider;
 
   constructor(private config: NearConfig) {
     this.initialize();
@@ -20,33 +22,36 @@ export class VerifierService {
       this.config.privateKey as KeyPairString,
     );
 
-    const provider = new providers.JsonRpcProvider({
+    this.provider = new JsonRpcProvider({
       url: this.config.nodeUrl,
     });
     const signer = new KeyPairSigner(keyPair);
 
-    this.account = new Account(this.config.accountId, provider, signer);
-  }
-
-  async initializeContract(): Promise<void> {
-    this.contract = new Contract(this.account, this.account.accountId, {
-      viewMethods: ['get_contract'],
-      changeMethods: ['set_contract'],
-      useLocalViewExecution: false,
-    }) as any;
+    this.account = new Account(this.config.accountId, this.provider, signer);
   }
 
   async getContract(accountId: string): Promise<ContractData | null> {
-    if (!this.contract) {
-      await this.initializeContract();
-    }
-
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
     try {
-      const contractData: ContractData = await this.contract.get_contract({
-        account_id: accountId,
+      const result = await this.provider.query<{
+        result: number[];
+        logs: string[];
+        block_height: number;
+        block_hash: string;
+      }>({
+        request_type: 'call_function',
+        account_id: this.config.accountId,
+        method_name: 'get_contract',
+        args_base64: Buffer.from(
+          JSON.stringify({ account_id: accountId }),
+        ).toString('base64'),
+        finality: 'final',
       });
+
+      const contractData: ContractData = JSON.parse(
+        Buffer.from(result.result).toString(),
+      );
 
       this.logger.log(
         `Contract data fetched successfully for account ID: ${accountId}`,
@@ -68,21 +73,27 @@ export class VerifierService {
     blockHeight: number,
     lang: string,
   ): Promise<void> {
-    if (!this.contract) {
-      await this.initializeContract();
-    }
-
     this.logger.log(`Setting contract for account ID: ${accountId}`);
 
     try {
-      await this.contract.set_contract({
-        args: {
-          account_id: accountId,
-          cid: cid,
-          code_hash: codeHash,
-          block_height: blockHeight,
-          lang: lang,
-        },
+      const args = {
+        account_id: accountId,
+        cid: cid,
+        code_hash: codeHash,
+        block_height: blockHeight,
+        lang: lang,
+      };
+
+      await this.account.signAndSendTransaction({
+        receiverId: this.config.accountId,
+        actions: [
+          actionCreators.functionCall(
+            'set_contract',
+            args,
+            BigInt('30000000000000'),
+            BigInt('0'),
+          ),
+        ],
       });
 
       this.logger.log(`Contract set successfully for account ID: ${accountId}`);

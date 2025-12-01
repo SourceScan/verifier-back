@@ -181,6 +181,7 @@ export class VerifyController {
 
       // Parse verification output
       const output = stdout.join('\n');
+      this.logger.log(`Parsing verification output for ${accountId}`);
 
       // Check if verification was successful
       if (
@@ -188,6 +189,7 @@ export class VerifyController {
           'The code obtained from the contract account ID and the code calculated from the repository are the same',
         )
       ) {
+        this.logger.warn(`Verification failed for ${accountId}: code mismatch`);
         return res
           .status(400)
           .json({ message: 'Contract verification failed' });
@@ -198,8 +200,10 @@ export class VerifyController {
         /Contract code hash:\s*([A-Za-z0-9]+)/,
       );
       const checksum = checksumMatch ? checksumMatch[1] : null;
+      this.logger.log(`Extracted code hash for ${accountId}: ${checksum}`);
 
       if (!checksum) {
+        this.logger.error(`Could not extract code hash for ${accountId}`);
         return res.status(400).json({
           message: 'Could not extract contract hash from verification output',
         });
@@ -207,8 +211,15 @@ export class VerifyController {
 
       // Check if the code hash is the same as the one in the verifier contract
       if (contractData && contractData.code_hash === checksum) {
+        this.logger.log(
+          `Code hash unchanged for ${accountId}: ${checksum} (already verified)`,
+        );
         return res.status(400).json({ message: "Code hash didn't change" });
       }
+
+      this.logger.log(
+        `New verification for ${accountId}: old=${contractData?.code_hash || 'none'}, new=${checksum}`,
+      );
 
       // Get the actual block height from the contract code query
       const codeResponse = await rpcService.viewCode(accountId, blockId);
@@ -230,15 +241,19 @@ export class VerifyController {
       await this.githubService.checkout(repoPath, sha);
 
       // Pin to IPFS
+      this.logger.log(`Adding repository to IPFS for ${accountId}`);
       let cid = '';
       cid = await this.ipfsService.addFolder(repoPath);
+      this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
 
       // Pin the folder to IPFS provider (non-fatal - verification continues even if pinning fails)
       try {
+        this.logger.log(`Pinning to QuickNode for ${accountId}`);
         await this.ipfsService.pinToQuickNode(
           cid,
           `${accountId}-${blockId || 'latest'}`,
         );
+        this.logger.log(`QuickNode pinning successful for ${accountId}`);
       } catch (error) {
         // Log the error but don't fail the verification
         const errorDetails = error.response?.data
@@ -253,6 +268,9 @@ export class VerifyController {
       await this.tempService.deleteFolder(tempFolder);
 
       // Store verification result
+      this.logger.log(
+        `Storing verification on-chain for ${accountId}: cid=${cid}, hash=${checksum}, block=${blockHeight}`,
+      );
       await verifierService.setContract(
         accountId,
         cid,
@@ -261,6 +279,7 @@ export class VerifyController {
         'rust',
       );
 
+      this.logger.log(`Contract ${accountId} verified and stored successfully`);
       return res.status(200).json({
         message: 'Contract verified successfully',
         checksum: checksum,
