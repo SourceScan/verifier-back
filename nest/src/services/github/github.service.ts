@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import GithubData from '../../modules/near/interfaces/github-data.interface';
 import { ExecService } from '../exec/exec.service';
 
 @Injectable()
@@ -19,15 +18,6 @@ export class GithubService {
       this.logger.error(`Error in clone: ${error.message}`);
       throw error;
     }
-  }
-
-  async getRepoInfo(repoUrl: string, sha): Promise<GithubData> {
-    const urlSplit = repoUrl.split('/');
-
-    const repo = urlSplit.pop();
-    const owner = urlSplit.pop();
-
-    return { owner, repo, sha };
   }
 
   parseSourceCodeSnapshot(sourceCodeSnapshot: string): {

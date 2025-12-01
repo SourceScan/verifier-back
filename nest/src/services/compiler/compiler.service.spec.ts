@@ -23,50 +23,25 @@ describe('CompilerService', () => {
     execService = moduleRef.get<ExecService>(ExecService);
   });
 
-  it('should compile Rust code successfully', async () => {
-    const mockOutput = ['Rust compilation output'];
+  it('should verify contract successfully', async () => {
+    const mockOutput = ['Contract verified'];
     jest
       .spyOn(execService, 'executeCommand')
       .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
-    const result = await compilerService.compileRust(
-      'sourcePath',
-      'buildCommand',
-    );
+    const result = await compilerService.verifyContract('test.near', 'mainnet');
     expect(result.stdout).toEqual(mockOutput);
     expect(execService.executeCommand).toHaveBeenCalledWith(
-      'sh /app/scripts/compiler/rust.sh sourcePath "buildCommand"',
+      'near contract verify deployed-at test.near network-config mainnet now',
     );
   });
 
-  it('should handle errors in Rust compilation', async () => {
-    const error = new Error('Compilation error');
+  it('should handle errors in contract verification', async () => {
+    const error = new Error('Verification error');
     jest.spyOn(execService, 'executeCommand').mockRejectedValue(error);
 
     await expect(
-      compilerService.compileRust('sourcePath', 'buildCommand'),
-    ).rejects.toThrow(error);
-  });
-
-  it('should compile TypeScript code successfully', async () => {
-    const mockOutput = ['TypeScript compilation output'];
-    jest
-      .spyOn(execService, 'executeCommand')
-      .mockResolvedValue({ stderr: [], stdout: mockOutput });
-
-    const result = await compilerService.compileTypeScript('sourcePath');
-    expect(result.stdout).toEqual(mockOutput);
-    expect(execService.executeCommand).toHaveBeenCalledWith(
-      'sh /app/scripts/compiler/ts.sh sourcePath',
-    );
-  });
-
-  it('should handle errors in TypeScript compilation', async () => {
-    const error = new Error('Compilation error');
-    jest.spyOn(execService, 'executeCommand').mockRejectedValue(error);
-
-    await expect(
-      compilerService.compileTypeScript('sourcePath'),
+      compilerService.verifyContract('test.near', 'mainnet'),
     ).rejects.toThrow(error);
   });
 });

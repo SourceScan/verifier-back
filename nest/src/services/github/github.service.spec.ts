@@ -15,7 +15,7 @@ describe('GithubService', () => {
           useValue: {
             executeCommand: jest
               .fn()
-              .mockResolvedValue({ stdout: '', stderr: '' }),
+              .mockResolvedValue({ stdout: [], stderr: [] }),
           },
         },
       ],
@@ -42,16 +42,30 @@ describe('GithubService', () => {
     await expect(service.clone('sourcePath', 'repo')).rejects.toThrow(error);
   });
 
-  it('should get repo info', async () => {
-    const result = await service.getRepoInfo(
-      'https://github.com/2BeBuilt/near-explorer-contract',
-      'f608387ed0992a91e3125643ebf529dd505a483d',
+  it('should parse source code snapshot', () => {
+    const result = service.parseSourceCodeSnapshot(
+      'git+https://github.com/user/repo?rev=abc123',
     );
-
     expect(result).toEqual({
-      owner: '2BeBuilt',
-      repo: 'near-explorer-contract',
-      sha: 'f608387ed0992a91e3125643ebf529dd505a483d',
+      repoUrl: 'https://github.com/user/repo',
+      sha: 'abc123',
     });
+  });
+
+  it('should get repo path', () => {
+    const result = service.getRepoPath(
+      '/tmp/folder',
+      'https://github.com/user/my-repo.git',
+    );
+    expect(result).toBe('/tmp/folder/my-repo');
+  });
+
+  it('should successfully checkout a commit', async () => {
+    await expect(
+      service.checkout('/tmp/repo', 'abc123'),
+    ).resolves.not.toThrow();
+    expect(execService.executeCommand).toHaveBeenCalledWith(
+      'sh /app/scripts/github/checkout.sh /tmp/repo abc123',
+    );
   });
 });
