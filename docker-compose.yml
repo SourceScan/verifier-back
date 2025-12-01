@@ -3,7 +3,7 @@ services:
     build:
       context: nest
     platform: linux/amd64
-    container_name: ${BRANCH_NAME}_sscan-nest
+    container_name: ${BRANCH_NAME:-main}_sscan-nest
     restart: always
     networks:
       - nwk
@@ -17,7 +17,7 @@ services:
 
   sscan-ipfs:
     image: ipfs/kubo:v0.32.1
-    container_name: ${BRANCH_NAME}_sscan-ipfs
+    container_name: ${BRANCH_NAME:-main}_sscan-ipfs
     restart: always
     environment:
       - IPFS_PROFILE=server
@@ -42,7 +42,7 @@ services:
 
   sscan-nginx:
     image: nginx:1.27
-    container_name: ${BRANCH_NAME}_sscan-nginx
+    container_name: ${BRANCH_NAME:-main}_sscan-nginx
     restart: always
     ports:
       - '${HOST}:${NGINX_PORT}:${NGINX_PORT}'
@@ -66,4 +66,5 @@ services:
 
 networks:
   nwk:
+    name: ${BRANCH_NAME:-main}_nwk
     driver: bridge
