@@ -15,12 +15,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { BuildInfo, ContractMetadataDto } from 'src/dtos/contract-metadata.dto';
-import { ExecExceptionFilter } from 'src/filters/exec-exception/exec-exception.filter';
-import { GithubService } from 'src/services/github/github.service';
-import { ExecService } from 'src/services/exec/exec.service';
+import {
+  BuildInfo,
+  ContractMetadataDto,
+} from '../../dtos/contract-metadata.dto';
 import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
+import { ExecExceptionFilter } from '../../filters/exec-exception/exec-exception.filter';
+import { ExecService } from '../../services/exec/exec.service';
+import { GithubService } from '../../services/github/github.service';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
 import { RpcService } from '../../modules/near/services/rpc.service';
 import { VerifierService } from '../../modules/near/services/verifier.service';

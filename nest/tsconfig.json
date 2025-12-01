@@ -12,7 +12,6 @@
     "resolvePackageJsonExports": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
