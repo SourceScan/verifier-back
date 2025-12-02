@@ -13,13 +13,8 @@ export interface IpfsFileEntry {
 
 @Injectable()
 export class IpfsService {
-  private readonly quickNodeApiUrl =
-    'https://api.quicknode.com/ipfs/rest/v1/pinning';
-  private readonly quickNodeApiKey = process.env.QUICKNODE_API_KEY;
   private readonly ipfsHost = process.env.IPFS_HOST;
-  private readonly ipfsExternalIp = process.env.IPFS_EXTERNAL_IP;
   private readonly ipfsPort = process.env.IPFS_PORT;
-  private readonly swarmPort = process.env.SWARM_PORT;
 
   private readonly ipfsApiUrl: string;
   private readonly logger = new Logger(IpfsService.name);
@@ -27,32 +22,6 @@ export class IpfsService {
   constructor() {
     this.ipfsApiUrl = `http://${this.ipfsHost}:${this.ipfsPort}/api/v0`;
     this.logger.log(`IPFS API URL: ${this.ipfsApiUrl}`);
-  }
-
-  async pinToQuickNode(cid: string, name: string): Promise<any> {
-    const origins = [
-      `/ip4/${this.ipfsExternalIp}/tcp/${this.swarmPort}/p2p/SourcePeerId`,
-      `/ip4/${this.ipfsExternalIp}/udp/${this.swarmPort}/quic/p2p/SourcePeerId`,
-    ];
-
-    const data = {
-      cid: cid,
-      name: name,
-      origins: origins,
-    };
-
-    this.logger.log('Sending pin request to QuickNode');
-
-    const response = await axios.post(this.quickNodeApiUrl, data, {
-      headers: {
-        'x-api-key': this.quickNodeApiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    this.logger.log(`Pinning response: ${JSON.stringify(response.data)}`);
-
-    return response.data;
   }
 
   async addFolder(folderPath: string): Promise<string | undefined> {

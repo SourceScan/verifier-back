@@ -246,24 +246,6 @@ export class VerifyController {
       cid = await this.ipfsService.addFolder(repoPath);
       this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
 
-      // Pin the folder to IPFS provider (non-fatal - verification continues even if pinning fails)
-      try {
-        this.logger.log(`Pinning to QuickNode for ${accountId}`);
-        await this.ipfsService.pinToQuickNode(
-          cid,
-          `${accountId}-${blockId || 'latest'}`,
-        );
-        this.logger.log(`QuickNode pinning successful for ${accountId}`);
-      } catch (error) {
-        // Log the error but don't fail the verification
-        const errorDetails = error.response?.data
-          ? JSON.stringify(error.response.data)
-          : error.message;
-        this.logger.warn(
-          `QuickNode pinning failed (non-fatal): ${errorDetails}`,
-        );
-      }
-
       // Clean up temp folder
       await this.tempService.deleteFolder(tempFolder);
 
