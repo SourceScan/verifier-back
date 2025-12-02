@@ -1,17 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
-import { IsSafePath } from 'src/validators/safe-path.decorator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class VerifyRustDto {
-  @ApiProperty({
-    description: 'The entry point file for Rust compilation',
-    example: 'Cargo.toml',
-  })
-  @IsNotEmpty()
-  @IsString()
-  @IsSafePath()
-  entryPoint: string;
-
   @ApiProperty({
     description: 'Network ID',
     example: 'mainnet',
@@ -29,11 +19,12 @@ export class VerifyRustDto {
   accountId: string;
 
   @ApiProperty({
-    description: 'Whether to upload to IPFS',
-    example: false,
+    description: 'Number of block',
+    example: 165753012,
   })
-  @IsNotEmpty()
-  uploadToIpfs: boolean;
+  @IsOptional()
+  @IsNumber()
+  blockId: number;
 }
 
 export class BuilderImageInfoResponse {

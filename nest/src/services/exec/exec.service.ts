@@ -11,7 +11,7 @@ export class ExecService {
 
   async executeCommand(
     command: string,
-  ): Promise<{ stdout: string; stderr: string }> {
+  ): Promise<{ stdout: string[]; stderr: string[] }> {
     try {
       const { stdout, stderr } = await execAsync(command);
 
@@ -19,7 +19,8 @@ export class ExecService {
         stdout,
         stderr,
       );
-      if (parsedStderr) {
+
+      if (parsedStderr.length > 0) {
         throw new ExecException(
           command,
           `Error executing command: ${parsedStderr}`,
@@ -29,7 +30,7 @@ export class ExecService {
       }
 
       return { stdout: parsedStdout, stderr: parsedStderr };
-    } catch (error) {
+    } catch (error: any) {
       throw new ExecException(
         command,
         error.message,
@@ -42,9 +43,9 @@ export class ExecService {
   private parseLogs(
     stdout: string,
     stderr: string,
-  ): { stdout: string; stderr: string } {
-    let parsedStdout = stdout;
-    let parsedStderr = '';
+  ): { stdout: string[]; stderr: string[] } {
+    const parsedStdout: string[] = stdout ? stdout.split('\n') : [];
+    const parsedStderr: string[] = [];
 
     const errorIndicators = [
       'error:', // Standard error prefix in Rust and common error prefix
@@ -52,7 +53,6 @@ export class ExecService {
       'failed', // Indicative of a failure in an operation
       'cannot', // Cannot perform an operation
       "can't", // Short form of cannot
-      'unable', // Unable to perform an operation
       'panic:', // Rust panic messages
       // Linux errors
       'unrecoverable error', // Indicative of an unrecoverable error
@@ -86,10 +86,10 @@ export class ExecService {
             line.toLowerCase().includes(indicator),
           )
         ) {
-          parsedStderr += line + '\n';
+          parsedStderr.push(line);
         } else {
           // Handling non-error messages in stderr
-          parsedStdout += line + '\n';
+          parsedStdout.push(line);
         }
       });
     }

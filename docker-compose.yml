@@ -1,0 +1,70 @@
+services:
+  sscan-nest:
+    build:
+      context: nest
+    platform: linux/amd64
+    container_name: ${BRANCH_NAME:-main}_sscan-nest
+    restart: always
+    networks:
+      - nwk
+    ports:
+      - '127.0.0.1:${NEST_PORT}:${NEST_PORT}'
+    volumes:
+      - ./nest/scripts:/app/scripts
+    env_file:
+      - .env
+    privileged: true
+
+  sscan-ipfs:
+    image: ipfs/kubo:v0.39.0
+    container_name: ${BRANCH_NAME:-main}_sscan-ipfs
+    restart: always
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/ipfsdata
+      - IPFS_EXTERNAL_IP=${IPFS_EXTERNAL_IP}
+      - SWARM_PORT=${SWARM_PORT}
+    networks:
+      - nwk
+    ports:
+      - "${SWARM_PORT}:4001"
+      - "${SWARM_PORT}:4001/udp"
+      - "127.0.0.1:${IPFS_PORT}:5001"
+      - "127.0.0.1:${GATE_PORT}:8080"
+    volumes:
+      - ./docker-data/ipfs:/ipfsdata
+      - ./ipfs/001-configure.sh:/container-init.d/001-configure.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ipfs swarm peers | head -1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sscan-nginx:
+    image: nginx:1.27
+    container_name: ${BRANCH_NAME:-main}_sscan-nginx
+    restart: always
+    ports:
+      - '${HOST}:${NGINX_PORT}:${NGINX_PORT}'
+    networks:
+      - nwk
+    volumes:
+      - ./nginx/:/etc/nginx/templates/
+      - ./nginx/scripts/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /entrypoint.sh
+    command: ["nginx", "-g", "daemon off;"]
+    environment:
+      - NGINX_PORT=${NGINX_PORT}
+      - NEST_PORT=${NEST_PORT}
+      - GATE_PORT=${GATE_PORT}
+      - IPFS_PORT=${IPFS_PORT}
+      - IPFS_ADMIN_USER=${IPFS_ADMIN_USER}
+      - IPFS_ADMIN_PASS=${IPFS_ADMIN_PASS}
+    depends_on:
+      - sscan-nest
+      - sscan-ipfs
+
+networks:
+  nwk:
+    name: ${BRANCH_NAME:-main}_nwk
+    driver: bridge

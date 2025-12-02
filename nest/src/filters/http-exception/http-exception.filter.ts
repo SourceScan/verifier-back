@@ -14,6 +14,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const status = exception.getStatus();
 
+    // Check if the exception message contains "Validation failed"
+    if (exception.message === 'Validation failed') {
+      const responseBody = exception.getResponse();
+      response.status(status).json(responseBody);
+      return;
+    }
+
+    // Handle other exceptions
     response.status(status).json({
       statusCode: status,
       message: exception.message,

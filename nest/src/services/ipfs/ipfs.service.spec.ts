@@ -1,22 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { create } from 'ipfs-http-client';
+import axios from 'axios';
 import { IpfsService } from './ipfs.service';
 
-jest.mock('ipfs-http-client', () => {
-  return {
-    create: jest.fn().mockReturnValue({
-      add: jest.fn(),
-      addAll: jest.fn(),
-      cat: jest.fn(),
-    }),
-    globSource: jest.fn(),
-  };
-});
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('IpfsService', () => {
   let service: IpfsService;
 
   beforeEach(async () => {
+    process.env.IPFS_HOST = 'localhost';
+    process.env.IPFS_PORT = '5001';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [IpfsService],
     }).compile();
@@ -24,43 +19,47 @@ describe('IpfsService', () => {
     service = module.get<IpfsService>(IpfsService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('add', () => {
-    it('should add data to IPFS and return result', async () => {
-      const mockAddResult = { cid: { toString: () => 'mockCid' } };
-      const mockCreate = create();
-      mockCreate.add.mockResolvedValue(mockAddResult);
+  describe('listFilesAtPath', () => {
+    it('should list files at IPFS path', async () => {
+      const mockResponse = {
+        data: {
+          Objects: [
+            {
+              Links: [
+                { Name: 'file1.txt', Hash: 'Qm123', Size: 100, Type: 2 },
+                { Name: 'folder', Hash: 'Qm456', Size: 0, Type: 1 },
+              ],
+            },
+          ],
+        },
+      };
 
-      const result = await service.add(Buffer.from('test data'));
-      expect(mockCreate.add).toHaveBeenCalledWith(Buffer.from('test data'));
-      expect(result).toEqual(mockAddResult);
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await service.listFilesAtPath('QmRootCid', 'subpath');
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'http://localhost:5001/api/v0/ls?arg=QmRootCid%2Fsubpath',
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0].Name).toBe('file1.txt');
+      expect(result[1].Type).toBe(1);
     });
-  });
 
-  describe('addFolder', () => {
-    it('should add a folder to IPFS and return the last file CID', async () => {
-      create().addAll.mockImplementation(async function* () {
-        yield* [{ cid: { toString: () => 'mockFileCid' } }];
-      });
+    it('should return empty array when no files found', async () => {
+      mockedAxios.post.mockResolvedValue({ data: { Objects: [] } });
 
-      const result = await service.addFolder('path/to/folder');
-      expect(create().addAll).toHaveBeenCalled();
-      expect(result).toEqual('mockFileCid');
-    });
-  });
+      const result = await service.listFilesAtPath('QmEmptyCid', '');
 
-  describe('retrieve', () => {
-    it('should retrieve data from IPFS', async () => {
-      create().cat.mockImplementation(async function* () {
-        yield Buffer.from('retrieved data');
-      });
-
-      const result = await service.retrieve('mockCid');
-      expect(create().cat).toHaveBeenCalledWith('mockCid');
-      expect(result).toEqual(Buffer.from('retrieved data'));
+      expect(result).toEqual([]);
     });
   });
 });

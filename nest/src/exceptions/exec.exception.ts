@@ -11,19 +11,19 @@ export class ExecException extends Error {
     description: 'Standard output of the command',
     required: false,
   })
-  public stdout?: string;
+  public stdout?: string[];
 
   @ApiProperty({
     description: 'Standard error output of the command',
     required: false,
   })
-  public stderr?: string;
+  public stderr?: string[];
 
   constructor(
     command: string,
     message: string,
-    stdout?: string,
-    stderr?: string,
+    stdout?: string[],
+    stderr?: string[],
   ) {
     super(message);
     this.name = 'ExecException';

@@ -1,6 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import * as bs58 from 'bs58';
+import { base58 } from '@scure/base';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -32,12 +32,14 @@ export class TempService {
     return folder;
   }
 
-  async checkFolder(folderPath: string): Promise<boolean> {
+  async checkFolder(folderPath: string, silent = false): Promise<boolean> {
     try {
       await fs.access(folderPath, fs.constants.F_OK);
       return true;
     } catch (err) {
-      this.logger.error(`Error accessing ${folderPath}: ${err.message}`);
+      if (!silent) {
+        this.logger.error(`Error accessing ${folderPath}: ${err.message}`);
+      }
       return false;
     }
   }
@@ -75,12 +77,14 @@ export class TempService {
   @Cron(CronExpression.EVERY_MINUTE)
   async handleCleanup() {
     for (const [folder, creationTime] of this.folderCreationTimes) {
+      // 60000ms = 1 minute, so cleanup after JWT_EXPIRATION minutes
       if (
         new Date().getTime() - creationTime.getTime() >
-        6000 * parseInt(process.env.JWT_EXPIRATION)
+        60000 * parseInt(process.env.JWT_EXPIRATION)
       ) {
         try {
-          const exists = await this.checkFolder(folder);
+          // Use silent mode - folder may already be deleted by verification process
+          const exists = await this.checkFolder(folder, true);
           if (exists) {
             await this.deleteFolder(folder);
           }
@@ -96,17 +100,30 @@ export class TempService {
   }
 
   async readRustWasmFile(
-    sourcePath: string,
+    wasmFilePath: string,
   ): Promise<{ wasmBase64: string; checksum: string }> {
     try {
-      const releasePath = path.join(sourcePath, 'release');
-      // Delete the release folder if it exists
-      if (await this.checkFolder(releasePath)) {
-        await this.deleteFolder(releasePath);
-      }
+      const wasmFileData = await fs.readFile(wasmFilePath);
+      const wasmBase64 = wasmFileData.toString('base64');
 
+      // Calculate SHA-256 hash
+      const hash = crypto.createHash('sha256');
+      hash.update(wasmFileData);
+      const checksum = base58.encode(hash.digest());
+
+      return { wasmBase64, checksum };
+    } catch (error) {
+      this.logger.error(`Error in readWasmFile: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findRustWasmInFolder(
+    sourcePath: string,
+  ): Promise<{ wasmFilePath: string }> {
+    try {
       const dirContent = await fs.readdir(
-        path.join(sourcePath, 'wasm32-unknown-unknown', 'release'),
+        path.join(sourcePath, 'target', 'near'),
       );
       const wasmFiles = dirContent.filter((file) => file.endsWith('.wasm'));
 
@@ -116,22 +133,12 @@ export class TempService {
 
       const wasmFilePath = path.join(
         sourcePath,
-        'wasm32-unknown-unknown',
-        'release',
+        'target',
+        'near',
         wasmFiles[0],
       );
-      const wasmFileData = await fs.readFile(wasmFilePath);
-      const wasmBase64 = wasmFileData.toString('base64');
 
-      // Calculate SHA-256 hash
-      const hash = crypto.createHash('sha256');
-      hash.update(wasmFileData);
-      const checksum = bs58.encode(hash.digest());
-
-      // Delete the wasm32-unknown-unknown folder
-      await this.deleteFolder(path.join(sourcePath, 'wasm32-unknown-unknown'));
-
-      return { wasmBase64, checksum };
+      return { wasmFilePath };
     } catch (error) {
       this.logger.error(`Error in readWasmFile: ${error.message}`);
       throw error;

@@ -2,21 +2,23 @@ name: Main CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "api-v2" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "api-v2" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Use Node.js 16.x
-      uses: actions/setup-node@v3
+    - name: Use Node.js 24.x LTS
+      uses: actions/setup-node@v4
       with:
-        node-version: '16.x'
+        node-version: '24.x'
+        cache: 'npm'
+        cache-dependency-path: nest/package-lock.json
 
     - name: Install and Build
       run: |
@@ -29,19 +31,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Use Node.js 16.x
-      uses: actions/setup-node@v3
+    - name: Use Node.js 24.x LTS
+      uses: actions/setup-node@v4
       with:
-        node-version: '16.x'
+        node-version: '24.x'
+        cache: 'npm'
+        cache-dependency-path: nest/package-lock.json
 
     - name: Install Dependencies
       run: |
         cd nest
         npm ci
 
-    - name: Test Nest JS
+    - name: Lint
+      run: |
+        cd nest
+        npm run lint
+
+    - name: Test
       run: |
         cd nest
         npm run test

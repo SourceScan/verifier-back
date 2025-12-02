@@ -1,46 +1,48 @@
 import {
   Body,
   Controller,
-  Get,
   HttpException,
-  HttpStatus,
   Inject,
   Post,
-  Req,
   Res,
   UseFilters,
-  UseGuards,
+  Logger,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiExtraModels,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import path from 'path';
-import { BuilderImageInfoResponse, VerifyRustDto } from '../../dtos/verify.dto';
+import {
+  BuildInfo,
+  ContractMetadataDto,
+} from '../../dtos/contract-metadata.dto';
+import { VerifyRustDto } from '../../dtos/verify.dto';
 import { ExecException } from '../../exceptions/exec.exception';
 import { ExecExceptionFilter } from '../../filters/exec-exception/exec-exception.filter';
-import { AuthGuard } from '../../guards/auth/auth.guard';
+import { ExecService } from '../../services/exec/exec.service';
+import { GithubService } from '../../services/github/github.service';
 import ContractData from '../../modules/near/interfaces/contract-data.interface';
 import { RpcService } from '../../modules/near/services/rpc.service';
 import { VerifierService } from '../../modules/near/services/verifier.service';
-import { BuilderInfoService } from '../../services/builder-info/builder-info.service';
 import { CompilerService } from '../../services/compiler/compiler.service';
 import { IpfsService } from '../../services/ipfs/ipfs.service';
 import { TempService } from '../../services/temp/temp.service';
 
 @ApiTags('verify')
-@ApiExtraModels(ExecException)
+@ApiExtraModels(HttpException)
 @Controller('verify')
 export class VerifyController {
+  private logger = new Logger(VerifyController.name);
+
   constructor(
     private readonly compilerService: CompilerService,
+    private readonly githubService: GithubService,
+    private readonly execService: ExecService,
     private readonly tempService: TempService,
     private readonly ipfsService: IpfsService,
-    private readonly builderInfoService: BuilderInfoService,
     @Inject('MainnetVerifierService')
     private readonly mainnetVerifierService: VerifierService,
     @Inject('TestnetVerifierService')
@@ -53,8 +55,6 @@ export class VerifyController {
 
   @Post('rust')
   @UseFilters(ExecExceptionFilter)
-  @UseGuards(AuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Verify Rust source code and add to contract with signer',
   })
@@ -68,14 +68,8 @@ export class VerifyController {
     description: 'Execution exception occurred',
     type: ExecException,
   })
-  async verifyRust(
-    @Req() req,
-    @Body() body: VerifyRustDto,
-    @Res() res: Response,
-  ) {
-    const { sourcePath, github } = req.jwtPayload;
-    const { entryPoint, networkId, accountId, uploadToIpfs } = body;
-    const entryPath = path.dirname(path.join(sourcePath, entryPoint));
+  async verifyRust(@Body() body: VerifyRustDto, @Res() res: Response) {
+    const { networkId, accountId, blockId } = body;
 
     let verifierService: VerifierService;
     let rpcService: RpcService;
@@ -89,65 +83,192 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    await this.compilerService.compileRust(entryPath, sourcePath);
-
-    const { checksum } = await this.tempService.readRustWasmFile(sourcePath);
-
-    const rpcResponse: any = await rpcService.viewCode(accountId);
-
-    if (!rpcResponse) {
-      return res
-        .status(200)
-        .json({ message: 'Error while calling rpc method' });
+    let contractData: ContractData = null;
+    try {
+      contractData = await verifierService.getContract(accountId);
+    } catch {
+      // Contract not found in verifier, continue
     }
 
-    if (rpcResponse.hash !== checksum) {
-      return res.status(200).json({ message: 'Code hash mismatch' });
+    // Pre-verification checks: Get contract metadata and validate repository accessibility
+    let contractMetadata: ContractMetadataDto = null;
+    let buildInfo: BuildInfo = null;
+
+    try {
+      // Get contract metadata to check if source is accessible
+      const contractMetadataResponse = await rpcService.callFunction(
+        accountId,
+        'contract_source_metadata',
+        blockId,
+      );
+
+      contractMetadata = contractMetadataResponse.result;
+
+      if (!contractMetadata || !contractMetadata.build_info) {
+        return res
+          .status(400)
+          .json({ message: `No source metadata found for ${accountId}` });
+      }
+
+      buildInfo = contractMetadata.build_info;
+
+      // Extract the repository URL and commit hash
+      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+        buildInfo.source_code_snapshot,
+      );
+
+      // Test repository accessibility by trying to clone it
+      const tempFolder = await this.tempService.createFolder();
+      try {
+        await this.githubService.clone(tempFolder, repoUrl);
+        const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
+        await this.githubService.checkout(repoPath, sha);
+      } catch (error) {
+        if (
+          error.message.includes('Authentication failed') ||
+          error.message.includes('could not read Username') ||
+          error.message.includes('Repository not found') ||
+          error.message.includes('remote: Repository not found') ||
+          error.message.includes('fatal: repository')
+        ) {
+          await this.tempService.deleteFolder(tempFolder);
+          return res.status(400).json({
+            message: `Repository is not publicly accessible: ${repoUrl}. Contract verification requires public repositories.`,
+          });
+        }
+        await this.tempService.deleteFolder(tempFolder);
+        throw error; // Re-throw other errors
+      }
+
+      // Clean up successful clone
+      await this.tempService.deleteFolder(tempFolder);
+
+      // Check Docker image availability if using Docker build environment
+      if (
+        buildInfo.build_environment &&
+        (buildInfo.build_environment.includes('sourcescan/cargo-near') ||
+          buildInfo.build_environment.includes('docker'))
+      ) {
+        this.logger.log(
+          `Docker build environment detected: ${buildInfo.build_environment}`,
+        );
+
+        // Extract Docker image name from build environment
+        const dockerImage = buildInfo.build_environment;
+
+        // Skip Docker image check since we're running in Docker-in-Docker environment
+        // The image will be pulled during actual compilation if needed
+        this.logger.log(
+          `Docker build environment detected: ${dockerImage} - will be validated during compilation`,
+        );
+      }
+    } catch (error) {
+      if (error.status === 400) {
+        throw error; // Re-throw validation errors
+      }
+      this.logger.error(`Pre-verification checks failed: ${error.message}`);
+      return res.status(500).json({
+        message: `Pre-verification checks failed: ${error.message}`,
+      });
     }
 
-    const contractData: ContractData = await verifierService.getContract(
-      accountId,
-    );
+    // Use near-cli-rs to verify the contract
+    try {
+      const { stdout } = await this.compilerService.verifyContract(
+        accountId,
+        networkId,
+      );
 
-    if (contractData && contractData.code_hash === checksum) {
-      return res.status(200).json({ message: "Code hash didn't change" });
+      // Parse verification output
+      const output = stdout.join('\n');
+      this.logger.log(`Parsing verification output for ${accountId}`);
+
+      // Check if verification was successful
+      if (
+        !output.includes(
+          'The code obtained from the contract account ID and the code calculated from the repository are the same',
+        )
+      ) {
+        this.logger.warn(`Verification failed for ${accountId}: code mismatch`);
+        return res
+          .status(400)
+          .json({ message: 'Contract verification failed' });
+      }
+
+      // Extract checksum from output
+      const checksumMatch = output.match(
+        /Contract code hash:\s*([A-Za-z0-9]+)/,
+      );
+      const checksum = checksumMatch ? checksumMatch[1] : null;
+      this.logger.log(`Extracted code hash for ${accountId}: ${checksum}`);
+
+      if (!checksum) {
+        this.logger.error(`Could not extract code hash for ${accountId}`);
+        return res.status(400).json({
+          message: 'Could not extract contract hash from verification output',
+        });
+      }
+
+      // Check if the code hash is the same as the one in the verifier contract
+      if (contractData && contractData.code_hash === checksum) {
+        this.logger.log(
+          `Code hash unchanged for ${accountId}: ${checksum} (already verified)`,
+        );
+        return res.status(400).json({ message: "Code hash didn't change" });
+      }
+
+      this.logger.log(
+        `New verification for ${accountId}: old=${contractData?.code_hash || 'none'}, new=${checksum}`,
+      );
+
+      // Get the actual block height from the contract code query
+      const codeResponse = await rpcService.viewCode(accountId, blockId);
+      const blockHeight = (codeResponse as any).block_height;
+
+      // Contract metadata and buildInfo already fetched in pre-verification checks
+
+      // Extract the repository URL and the commit hash
+      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+        buildInfo.source_code_snapshot,
+      );
+
+      // Create a temporary folder to clone the repository for IPFS
+      const tempFolder = await this.tempService.createFolder();
+
+      // Clone the repository and checkout the commit
+      await this.githubService.clone(tempFolder, repoUrl);
+      const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
+      await this.githubService.checkout(repoPath, sha);
+
+      // Pin to IPFS
+      this.logger.log(`Adding repository to IPFS for ${accountId}`);
+      let cid = '';
+      cid = await this.ipfsService.addFolder(repoPath);
+      this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
+
+      // Clean up temp folder
+      await this.tempService.deleteFolder(tempFolder);
+
+      // Store verification result
+      this.logger.log(
+        `Storing verification on-chain for ${accountId}: cid=${cid}, hash=${checksum}, block=${blockHeight}`,
+      );
+      await verifierService.setContract(
+        accountId,
+        cid,
+        checksum,
+        blockHeight,
+        'rust',
+      );
+
+      this.logger.log(`Contract ${accountId} verified and stored successfully`);
+      return res.status(200).json({
+        message: 'Contract verified successfully',
+        checksum: checksum,
+      });
+    } catch (error) {
+      this.logger.error(`Verification error: ${error.message}`);
+      return res.status(500).json({ message: error.message });
     }
-
-    let cid = '';
-    if (uploadToIpfs) {
-      cid = await this.ipfsService.addFolder(sourcePath);
-    }
-
-    const builderImage = await this.builderInfoService.getBuilderImage();
-
-    await verifierService.setContract(
-      accountId,
-      cid,
-      checksum,
-      'rust',
-      entryPoint,
-      builderImage,
-      github,
-    );
-
-    return res
-      .status(HttpStatus.OK)
-      .json({ message: 'Contract verified successfully', checksum: checksum });
-  }
-
-  @Get('builderInfo')
-  @ApiOperation({
-    summary: 'Get builder image information',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Builder image information',
-    type: BuilderImageInfoResponse,
-  })
-  getBuilderInfo(): BuilderImageInfoResponse {
-    const response: BuilderImageInfoResponse = {
-      builderImage: this.builderInfoService.getBuilderImage(),
-    };
-    return response;
   }
 }

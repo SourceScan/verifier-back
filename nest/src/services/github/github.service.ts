@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import GithubData from '../../modules/near/interfaces/github-data.interface';
 import { ExecService } from '../exec/exec.service';
 
 @Injectable()
@@ -21,13 +20,19 @@ export class GithubService {
     }
   }
 
-  async getRepoInfo(repoUrl: string, sha): Promise<GithubData> {
-    const urlSplit = repoUrl.split('/');
+  parseSourceCodeSnapshot(sourceCodeSnapshot: string): {
+    repoUrl: string;
+    sha: string;
+  } {
+    // Remove the 'git+' prefix
+    const repoInfo = sourceCodeSnapshot.replace('git+', '');
+    // Extract the repository URL and the commit hash
+    const [repoUrl, sha] = repoInfo.split('?rev=');
+    return { repoUrl, sha };
+  }
 
-    const repo = urlSplit.pop();
-    const owner = urlSplit.pop();
-
-    return { owner, repo, sha };
+  getRepoPath(tempFolder: string, repoUrl: string): string {
+    return `${tempFolder}/${repoUrl.split('/').pop().replace('.git', '')}`;
   }
 
   async checkout(repoPath: string, sha: string): Promise<void> {
