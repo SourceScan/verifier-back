@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ContractsController } from './controllers/contracts/contracts.controller';
 import { IpfsController } from './controllers/ipfs/ipfs.controller';
 import { VerifyController } from './controllers/verify/verify.controller';
 import { NearModule } from './modules/near/near.module';
@@ -13,7 +14,7 @@ import { TempService } from './services/temp/temp.service';
 
 @Module({
   imports: [NearModule, ScheduleModule.forRoot()],
-  controllers: [VerifyController, IpfsController],
+  controllers: [VerifyController, IpfsController, ContractsController],
   providers: [
     IpfsService,
     TempService,

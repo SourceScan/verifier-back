@@ -7,6 +7,13 @@ import { actionCreators } from '@near-js/transactions';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
 
+interface RpcQueryResult {
+  result: number[];
+  logs: string[];
+  block_height: number;
+  block_hash: string;
+}
+
 @Injectable()
 export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
@@ -34,12 +41,7 @@ export class VerifierService {
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
     try {
-      const result = await this.provider.query<{
-        result: number[];
-        logs: string[];
-        block_height: number;
-        block_hash: string;
-      }>({
+      const result = await this.provider.query<RpcQueryResult>({
         request_type: 'call_function',
         account_id: this.config.accountId,
         method_name: 'get_contract',
@@ -103,6 +105,59 @@ export class VerifierService {
         error.stack,
       );
       throw new HttpException(error.message, 500);
+    }
+  }
+
+  async getContractsCount(): Promise<number> {
+    this.logger.log('Fetching contracts count');
+
+    try {
+      const result = await this.provider.query<RpcQueryResult>({
+        request_type: 'call_function',
+        account_id: this.config.accountId,
+        method_name: 'get_contracts_count',
+        args_base64: Buffer.from(JSON.stringify({})).toString('base64'),
+        finality: 'final',
+      });
+
+      const count: number = JSON.parse(Buffer.from(result.result).toString());
+
+      this.logger.log(`Contracts count: ${count}`);
+      return count;
+    } catch (error) {
+      this.logger.error('Error fetching contracts count', error.stack);
+      throw new HttpException('Failed to fetch contracts count', 500);
+    }
+  }
+
+  async getContractsByCodeHash(codeHash: string): Promise<ContractData[]> {
+    this.logger.log(`Fetching contracts by code hash: ${codeHash}`);
+
+    try {
+      const result = await this.provider.query<RpcQueryResult>({
+        request_type: 'call_function',
+        account_id: this.config.accountId,
+        method_name: 'get_contracts_by_code_hash',
+        args_base64: Buffer.from(
+          JSON.stringify({ code_hash: codeHash }),
+        ).toString('base64'),
+        finality: 'final',
+      });
+
+      const contracts: ContractData[] = JSON.parse(
+        Buffer.from(result.result).toString(),
+      );
+
+      this.logger.log(
+        `Found ${contracts.length} contracts with code hash: ${codeHash}`,
+      );
+      return contracts;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching contracts by code hash: ${codeHash}`,
+        error.stack,
+      );
+      throw new HttpException('Failed to fetch contracts by code hash', 500);
     }
   }
 }
