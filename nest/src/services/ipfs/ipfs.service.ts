@@ -117,6 +117,19 @@ export class IpfsService {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...(await this.getFilesRecursively(fullPath)));
+      } else if (entry.isSymbolicLink()) {
+        // Check if symlink points to a directory or file
+        try {
+          const stat = await fs.stat(fullPath);
+          if (stat.isDirectory()) {
+            files.push(...(await this.getFilesRecursively(fullPath)));
+          } else {
+            files.push(fullPath);
+          }
+        } catch {
+          // Skip broken symlinks
+          this.logger.warn(`Skipping broken symlink: ${fullPath}`);
+        }
       } else {
         files.push(fullPath);
       }
