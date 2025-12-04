@@ -104,6 +104,11 @@ export class IpfsService {
         }),
       );
     } catch (error) {
+      // IPFS returns 500 when path doesn't exist - return empty array instead
+      if (error.response?.data?.Message?.includes('no link named')) {
+        this.logger.warn(`Path not found: ${fullPath}`);
+        return [];
+      }
       this.logger.error(`Failed to list files at path: ${error.message}`);
       throw error;
     }
