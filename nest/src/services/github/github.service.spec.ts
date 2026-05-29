@@ -49,14 +49,33 @@ describe('GithubService', () => {
   });
 
   it('should parse source code snapshot', () => {
-    const sha = '0123456789abcdef0123456789abcdef01234567';
+    const sha = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
     const result = service.parseSourceCodeSnapshot(
-      `git+https://github.com/user/repo?rev=${sha}`,
+      `git+https://github.com/near/cargo-near-new-project-template?rev=${sha}`,
     );
     expect(result).toEqual({
-      repoUrl: 'https://github.com/user/repo',
+      repoUrl: 'https://github.com/near/cargo-near-new-project-template',
       sha,
     });
+  });
+
+  it('should parse NEP-330 source code snapshot with fragment SHA', () => {
+    const sha = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
+    const result = service.parseSourceCodeSnapshot(
+      `git+https://github.com/near/cargo-near-new-project-template.git#${sha}`,
+    );
+    expect(result).toEqual({
+      repoUrl: 'https://github.com/near/cargo-near-new-project-template.git',
+      sha,
+    });
+  });
+
+  it('should reject source snapshots with conflicting SHAs', () => {
+    expect(() =>
+      service.parseSourceCodeSnapshot(
+        'git+https://github.com/user/repo?rev=0123456789abcdef0123456789abcdef01234567#89abcdef0123456789abcdef0123456789abcdef',
+      ),
+    ).toThrow('Source snapshot must not contain conflicting commit SHAs');
   });
 
   it('should reject non-GitHub source snapshots', () => {

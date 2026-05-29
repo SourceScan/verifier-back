@@ -38,7 +38,15 @@ export class GithubService {
     } catch {
       throw new BadRequestException('Source snapshot must contain a valid URL');
     }
-    const sha = snapshotUrl.searchParams.get('rev');
+    const revSha = snapshotUrl.searchParams.get('rev');
+    const hashSha = snapshotUrl.hash ? snapshotUrl.hash.slice(1) : null;
+    if (revSha && hashSha && revSha !== hashSha) {
+      throw new BadRequestException(
+        'Source snapshot must not contain conflicting commit SHAs',
+      );
+    }
+
+    const sha = revSha ?? hashSha;
 
     if (!sha || !isValidCommitSha(sha)) {
       throw new BadRequestException(
