@@ -13,7 +13,7 @@ describe('GithubService', () => {
         {
           provide: ExecService,
           useValue: {
-            executeCommand: jest
+            executeFile: jest
               .fn()
               .mockResolvedValue({ stdout: [], stderr: [] }),
           },
@@ -30,26 +30,41 @@ describe('GithubService', () => {
   });
 
   it('should successfully clone a repository', async () => {
-    await expect(service.clone('sourcePath', 'repo')).resolves.not.toThrow();
-    expect(execService.executeCommand).toHaveBeenCalledWith(
-      'sh /app/scripts/github/clone.sh sourcePath repo',
+    await expect(
+      service.clone('sourcePath', 'https://github.com/user/repo'),
+    ).resolves.not.toThrow();
+    expect(execService.executeFile).toHaveBeenCalledWith(
+      'git',
+      ['clone', '--', 'https://github.com/user/repo'],
+      { cwd: 'sourcePath' },
     );
   });
 
   it('should handle errors in clone method', async () => {
     const error = new Error('Clone failed');
-    jest.spyOn(execService, 'executeCommand').mockRejectedValueOnce(error);
-    await expect(service.clone('sourcePath', 'repo')).rejects.toThrow(error);
+    jest.spyOn(execService, 'executeFile').mockRejectedValueOnce(error);
+    await expect(
+      service.clone('sourcePath', 'https://github.com/user/repo'),
+    ).rejects.toThrow(error);
   });
 
   it('should parse source code snapshot', () => {
+    const sha = '0123456789abcdef0123456789abcdef01234567';
     const result = service.parseSourceCodeSnapshot(
-      'git+https://github.com/user/repo?rev=abc123',
+      `git+https://github.com/user/repo?rev=${sha}`,
     );
     expect(result).toEqual({
       repoUrl: 'https://github.com/user/repo',
-      sha: 'abc123',
+      sha,
     });
+  });
+
+  it('should reject non-GitHub source snapshots', () => {
+    expect(() =>
+      service.parseSourceCodeSnapshot(
+        'git+ssh://example.com/user/repo?rev=0123456789abcdef0123456789abcdef01234567',
+      ),
+    ).toThrow('Repository URL must use HTTPS');
   });
 
   it('should get repo path', () => {
@@ -61,11 +76,12 @@ describe('GithubService', () => {
   });
 
   it('should successfully checkout a commit', async () => {
-    await expect(
-      service.checkout('/tmp/repo', 'abc123'),
-    ).resolves.not.toThrow();
-    expect(execService.executeCommand).toHaveBeenCalledWith(
-      'sh /app/scripts/github/checkout.sh /tmp/repo abc123',
+    const sha = '0123456789abcdef0123456789abcdef01234567';
+    await expect(service.checkout('/tmp/repo', sha)).resolves.not.toThrow();
+    expect(execService.executeFile).toHaveBeenCalledWith(
+      'git',
+      ['-c', 'advice.detachedHead=false', 'checkout', '--detach', sha],
+      { cwd: '/tmp/repo' },
     );
   });
 });

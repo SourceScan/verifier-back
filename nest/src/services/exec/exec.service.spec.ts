@@ -5,6 +5,7 @@ import { ExecService } from './exec.service';
 
 jest.mock('child_process', () => ({
   exec: jest.fn(),
+  execFile: jest.fn(),
 }));
 
 describe('ExecService', () => {
@@ -24,8 +25,8 @@ describe('ExecService', () => {
 
   it('should execute command successfully', async () => {
     const mockExec = cp.exec as unknown as jest.Mock;
-    mockExec.mockImplementation((cmd, callback) =>
-      callback(null, { stdout: 'success', stderr: '' }),
+    mockExec.mockImplementation((cmd, options, callback) =>
+      callback(null, 'success', ''),
     );
 
     await expect(service.executeCommand('echo "Hello World"')).resolves.toEqual(
@@ -38,8 +39,8 @@ describe('ExecService', () => {
 
   it('should throw ExecException when stderr contains errors', async () => {
     const mockExec = cp.exec as unknown as jest.Mock;
-    mockExec.mockImplementation((cmd, callback) =>
-      callback(null, { stdout: '', stderr: 'error: something went wrong' }),
+    mockExec.mockImplementation((cmd, options, callback) =>
+      callback(null, '', 'error: something went wrong'),
     );
 
     await expect(service.executeCommand('someCommand')).rejects.toThrow(
@@ -49,12 +50,31 @@ describe('ExecService', () => {
 
   it('should throw ExecException on command execution failure', async () => {
     const mockExec = cp.exec as unknown as jest.Mock;
-    mockExec.mockImplementation((cmd, callback) =>
-      callback(new Error('Execution failed'), { stdout: '', stderr: '' }),
+    mockExec.mockImplementation((cmd, options, callback) =>
+      callback(new Error('Execution failed'), '', ''),
     );
 
     await expect(service.executeCommand('faultyCommand')).rejects.toThrow(
       ExecException,
+    );
+  });
+
+  it('should execute a file without a shell', async () => {
+    const mockExecFile = cp.execFile as unknown as jest.Mock;
+    mockExecFile.mockImplementation((file, args, options, callback) =>
+      callback(null, 'success', ''),
+    );
+
+    await expect(service.executeFile('git', ['status'])).resolves.toEqual({
+      stdout: ['success'],
+      stderr: [],
+    });
+
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'git',
+      ['status'],
+      expect.objectContaining({ shell: false }),
+      expect.any(Function),
     );
   });
 });

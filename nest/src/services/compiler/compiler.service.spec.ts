@@ -13,7 +13,7 @@ describe('CompilerService', () => {
         {
           provide: ExecService,
           useValue: {
-            executeCommand: jest.fn(),
+            executeFile: jest.fn(),
           },
         },
       ],
@@ -26,22 +26,35 @@ describe('CompilerService', () => {
   it('should verify contract successfully', async () => {
     const mockOutput = ['Contract verified'];
     jest
-      .spyOn(execService, 'executeCommand')
+      .spyOn(execService, 'executeFile')
       .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
     const result = await compilerService.verifyContract('test.near', 'mainnet');
     expect(result.stdout).toEqual(mockOutput);
-    expect(execService.executeCommand).toHaveBeenCalledWith(
-      'near contract verify deployed-at test.near network-config mainnet now',
-    );
+    expect(execService.executeFile).toHaveBeenCalledWith('near', [
+      'contract',
+      'verify',
+      'deployed-at',
+      'test.near',
+      'network-config',
+      'mainnet',
+      'now',
+    ]);
   });
 
   it('should handle errors in contract verification', async () => {
     const error = new Error('Verification error');
-    jest.spyOn(execService, 'executeCommand').mockRejectedValue(error);
+    jest.spyOn(execService, 'executeFile').mockRejectedValue(error);
 
     await expect(
       compilerService.verifyContract('test.near', 'mainnet'),
     ).rejects.toThrow(error);
+  });
+
+  it('should reject unsafe account IDs before executing', async () => {
+    await expect(
+      compilerService.verifyContract('test.near; touch /tmp/pwned', 'mainnet'),
+    ).rejects.toThrow('Invalid NEAR account ID');
+    expect(execService.executeFile).not.toHaveBeenCalled();
   });
 });

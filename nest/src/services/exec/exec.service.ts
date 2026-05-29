@@ -1,19 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cp from 'child_process';
-import { promisify } from 'util';
 import { ExecException } from '../../exceptions/exec.exception';
 
-const execAsync = promisify(cp.exec);
+const DEFAULT_COMMAND_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 
 @Injectable()
 export class ExecService {
   private readonly logger = new Logger(ExecService.name);
+  private readonly timeoutMs = this.readPositiveInteger(
+    process.env.EXEC_TIMEOUT_MS,
+    DEFAULT_COMMAND_TIMEOUT_MS,
+  );
+  private readonly maxBufferBytes = this.readPositiveInteger(
+    process.env.EXEC_MAX_BUFFER_BYTES,
+    DEFAULT_MAX_BUFFER_BYTES,
+  );
 
   async executeCommand(
     command: string,
   ): Promise<{ stdout: string[]; stderr: string[] }> {
     try {
-      const { stdout, stderr } = await execAsync(command);
+      const { stdout, stderr } = await this.runShellCommand(command);
 
       const { stdout: parsedStdout, stderr: parsedStderr } = this.parseLogs(
         stdout,
@@ -31,13 +39,125 @@ export class ExecService {
 
       return { stdout: parsedStdout, stderr: parsedStderr };
     } catch (error: any) {
-      throw new ExecException(
-        command,
-        error.message,
-        error.stdout,
-        error.stderr,
-      );
+      throw this.toExecException(command, error);
     }
+  }
+
+  async executeFile(
+    file: string,
+    args: string[],
+    options: cp.ExecFileOptions = {},
+  ): Promise<{ stdout: string[]; stderr: string[] }> {
+    const command = this.formatCommand(file, args);
+
+    try {
+      const { stdout, stderr } = await this.runFileCommand(file, args, options);
+
+      const { stdout: parsedStdout, stderr: parsedStderr } = this.parseLogs(
+        stdout,
+        stderr,
+      );
+
+      if (parsedStderr.length > 0) {
+        throw new ExecException(
+          command,
+          `Error executing command: ${parsedStderr}`,
+          parsedStdout,
+          parsedStderr,
+        );
+      }
+
+      return { stdout: parsedStdout, stderr: parsedStderr };
+    } catch (error: any) {
+      throw this.toExecException(command, error);
+    }
+  }
+
+  private runShellCommand(
+    command: string,
+  ): Promise<{ stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      cp.exec(
+        command,
+        {
+          timeout: this.timeoutMs,
+          maxBuffer: this.maxBufferBytes,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            Object.assign(error, { stdout, stderr });
+            reject(error);
+            return;
+          }
+
+          resolve({
+            stdout: stdout?.toString() ?? '',
+            stderr: stderr?.toString() ?? '',
+          });
+        },
+      );
+    });
+  }
+
+  private runFileCommand(
+    file: string,
+    args: string[],
+    options: cp.ExecFileOptions,
+  ): Promise<{ stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      cp.execFile(
+        file,
+        args,
+        {
+          timeout: this.timeoutMs,
+          maxBuffer: this.maxBufferBytes,
+          ...options,
+          shell: false,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            Object.assign(error, { stdout, stderr });
+            reject(error);
+            return;
+          }
+
+          resolve({
+            stdout: stdout?.toString() ?? '',
+            stderr: stderr?.toString() ?? '',
+          });
+        },
+      );
+    });
+  }
+
+  private toExecException(command: string, error: any): ExecException {
+    if (error instanceof ExecException) {
+      return error;
+    }
+
+    return new ExecException(
+      command,
+      error.message,
+      this.normalizeOutput(error.stdout),
+      this.normalizeOutput(error.stderr),
+    );
+  }
+
+  private normalizeOutput(output?: string | string[]): string[] {
+    if (Array.isArray(output)) {
+      return output;
+    }
+
+    return output ? output.split('\n') : [];
+  }
+
+  private formatCommand(file: string, args: string[]): string {
+    return [file, ...args].join(' ');
+  }
+
+  private readPositiveInteger(value: string, fallback: number): number {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   private parseLogs(

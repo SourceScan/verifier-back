@@ -163,7 +163,7 @@ export class VerifyController {
         );
       }
     } catch (error) {
-      if (error.status === 400) {
+      if (error instanceof HttpException && error.getStatus() === 400) {
         throw error; // Re-throw validation errors
       }
       this.logger.error(`Pre-verification checks failed: ${error.message}`);
@@ -232,22 +232,33 @@ export class VerifyController {
         buildInfo.source_code_snapshot,
       );
 
-      // Create a temporary folder to clone the repository for IPFS
-      const tempFolder = await this.tempService.createFolder();
-
-      // Clone the repository and checkout the commit
-      await this.githubService.clone(tempFolder, repoUrl);
-      const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-      await this.githubService.checkout(repoPath, sha);
-
-      // Pin to IPFS
-      this.logger.log(`Adding repository to IPFS for ${accountId}`);
+      let tempFolder: string = null;
       let cid = '';
-      cid = await this.ipfsService.addFolder(repoPath);
-      this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
 
-      // Clean up temp folder
-      await this.tempService.deleteFolder(tempFolder);
+      try {
+        // Create a temporary folder to clone the repository for IPFS
+        tempFolder = await this.tempService.createFolder();
+
+        // Clone the repository and checkout the commit
+        await this.githubService.clone(tempFolder, repoUrl);
+        const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
+        await this.githubService.checkout(repoPath, sha);
+
+        // Pin to IPFS
+        this.logger.log(`Adding repository to IPFS for ${accountId}`);
+        cid = await this.ipfsService.addFolder(repoPath);
+        this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
+      } finally {
+        if (tempFolder) {
+          try {
+            await this.tempService.deleteFolder(tempFolder);
+          } catch (cleanupError) {
+            this.logger.error(
+              `Failed to clean up ${tempFolder}: ${cleanupError.message}`,
+            );
+          }
+        }
+      }
 
       // Store verification result
       this.logger.log(
