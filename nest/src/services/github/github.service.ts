@@ -28,9 +28,12 @@ export class GithubService {
 
   parseSourceCodeSnapshot(sourceCodeSnapshot: string): {
     repoUrl: string;
-    sha: string;
+    ref: string;
   } {
-    if (!sourceCodeSnapshot?.startsWith('git+')) {
+    if (
+      typeof sourceCodeSnapshot !== 'string' ||
+      !sourceCodeSnapshot.startsWith('git+')
+    ) {
       throw new BadRequestException('Source snapshot must use git+ URL format');
     }
 
@@ -43,7 +46,7 @@ export class GithubService {
     }
 
     const repoUrl = this.validateRepoUrl(rawRepoUrl);
-    return { repoUrl, sha: ref };
+    return { repoUrl, ref };
   }
 
   getRepoPath(tempFolder: string, repoUrl: string): string {
@@ -62,7 +65,7 @@ export class GithubService {
     try {
       await this.execService.executeFile(
         'git',
-        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', '--', ref],
+        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', ref],
         { cwd: repoPath },
       );
       this.logger.log(`Checkout completed successfully.`);
@@ -147,10 +150,8 @@ export class GithubService {
       throw new BadRequestException('Repository URL must be a valid URL');
     }
 
-    if (!['https:', 'ssh:', 'git:'].includes(parsedUrl.protocol)) {
-      throw new BadRequestException(
-        'Repository URL must use HTTPS, SSH, or git protocol',
-      );
+    if (!['https:', 'ssh:'].includes(parsedUrl.protocol)) {
+      throw new BadRequestException('Repository URL must use HTTPS or SSH');
     }
 
     if (
@@ -162,6 +163,12 @@ export class GithubService {
 
     const normalizedPath = parsedUrl.pathname.replace(/\/$/, '');
     if (!/^\/[A-Za-z0-9._~/-]+(?:\.git)?$/.test(normalizedPath)) {
+      throw new BadRequestException(
+        'Repository URL must point to a git repository',
+      );
+    }
+    const repoName = path.posix.basename(normalizedPath).replace(/\.git$/, '');
+    if (!repoName || repoName === '.' || repoName === '..') {
       throw new BadRequestException(
         'Repository URL must point to a git repository',
       );

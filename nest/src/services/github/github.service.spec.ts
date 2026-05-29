@@ -55,7 +55,7 @@ describe('GithubService', () => {
     );
     expect(result).toEqual({
       repoUrl: 'https://github.com/near/cargo-near-new-project-template',
-      sha: ref,
+      ref,
     });
   });
 
@@ -66,7 +66,7 @@ describe('GithubService', () => {
     );
     expect(result).toEqual({
       repoUrl: 'https://github.com/near/cargo-near-new-project-template.git',
-      sha: ref,
+      ref,
     });
   });
 
@@ -77,7 +77,7 @@ describe('GithubService', () => {
 
     expect(result).toEqual({
       repoUrl: 'https://gitlab.com/user/repo.git',
-      sha: 'v1.2.3',
+      ref: 'v1.2.3',
     });
   });
 
@@ -88,7 +88,7 @@ describe('GithubService', () => {
 
     expect(result).toEqual({
       repoUrl: 'ssh://git@gitlab.com/user/repo.git',
-      sha: 'feature/repro-build',
+      ref: 'feature/repro-build',
     });
   });
 
@@ -99,7 +99,7 @@ describe('GithubService', () => {
 
     expect(result).toEqual({
       repoUrl: 'git@gitlab.com:user/repo.git',
-      sha: 'a80bc29',
+      ref: 'a80bc29',
     });
   });
 
@@ -122,7 +122,15 @@ describe('GithubService', () => {
   it('should reject local filesystem source snapshots', () => {
     expect(() =>
       service.parseSourceCodeSnapshot('git+file:///tmp/repo?rev=main'),
-    ).toThrow('Repository URL must use HTTPS, SSH, or git protocol');
+    ).toThrow('Repository URL must use HTTPS or SSH');
+  });
+
+  it('should reject unauthenticated git protocol source snapshots', () => {
+    expect(() =>
+      service.parseSourceCodeSnapshot(
+        'git+git://github.com/user/repo?rev=main',
+      ),
+    ).toThrow('Repository URL must use HTTPS or SSH');
   });
 
   it('should get repo path', () => {
@@ -138,8 +146,19 @@ describe('GithubService', () => {
     await expect(service.checkout('/tmp/repo', sha)).resolves.not.toThrow();
     expect(execService.executeFile).toHaveBeenCalledWith(
       'git',
-      ['-c', 'advice.detachedHead=false', 'checkout', '--detach', '--', sha],
+      ['-c', 'advice.detachedHead=false', 'checkout', '--detach', sha],
       { cwd: '/tmp/repo' },
+    );
+  });
+
+  it('should reject option-like refs before checkout', async () => {
+    await expect(service.checkout('/tmp/repo', '--help')).rejects.toThrow(
+      'Git ref contains unsafe characters',
+    );
+    expect(execService.executeFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['--help']),
+      expect.anything(),
     );
   });
 });

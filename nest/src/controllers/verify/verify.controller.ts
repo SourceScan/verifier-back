@@ -112,8 +112,8 @@ export class VerifyController {
 
       buildInfo = contractMetadata.build_info;
 
-      // Extract the repository URL and commit hash
-      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+      // Extract the repository URL and pinned git ref
+      const { repoUrl, ref } = this.githubService.parseSourceCodeSnapshot(
         buildInfo.source_code_snapshot,
       );
 
@@ -122,7 +122,7 @@ export class VerifyController {
       try {
         await this.githubService.clone(tempFolder, repoUrl);
         const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-        await this.githubService.checkout(repoPath, sha);
+        await this.githubService.checkout(repoPath, ref);
       } catch (error) {
         if (
           error.message.includes('Authentication failed') ||
@@ -131,17 +131,14 @@ export class VerifyController {
           error.message.includes('remote: Repository not found') ||
           error.message.includes('fatal: repository')
         ) {
-          await this.tempService.deleteFolder(tempFolder);
           return res.status(400).json({
             message: `Repository is not publicly accessible: ${repoUrl}. Contract verification requires public repositories.`,
           });
         }
-        await this.tempService.deleteFolder(tempFolder);
         throw error; // Re-throw other errors
+      } finally {
+        await this.cleanupTempFolder(tempFolder);
       }
-
-      // Clean up successful clone
-      await this.tempService.deleteFolder(tempFolder);
 
       // Check Docker image availability if using Docker build environment
       if (
@@ -227,8 +224,8 @@ export class VerifyController {
 
       // Contract metadata and buildInfo already fetched in pre-verification checks
 
-      // Extract the repository URL and the commit hash
-      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
+      // Extract the repository URL and pinned git ref
+      const { repoUrl, ref } = this.githubService.parseSourceCodeSnapshot(
         buildInfo.source_code_snapshot,
       );
 
@@ -239,25 +236,17 @@ export class VerifyController {
         // Create a temporary folder to clone the repository for IPFS
         tempFolder = await this.tempService.createFolder();
 
-        // Clone the repository and checkout the commit
+        // Clone the repository and checkout the pinned git ref
         await this.githubService.clone(tempFolder, repoUrl);
         const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-        await this.githubService.checkout(repoPath, sha);
+        await this.githubService.checkout(repoPath, ref);
 
         // Pin to IPFS
         this.logger.log(`Adding repository to IPFS for ${accountId}`);
         cid = await this.ipfsService.addFolder(repoPath);
         this.logger.log(`IPFS CID for ${accountId}: ${cid}`);
       } finally {
-        if (tempFolder) {
-          try {
-            await this.tempService.deleteFolder(tempFolder);
-          } catch (cleanupError) {
-            this.logger.error(
-              `Failed to clean up ${tempFolder}: ${cleanupError.message}`,
-            );
-          }
-        }
+        await this.cleanupTempFolder(tempFolder);
       }
 
       // Store verification result
@@ -280,6 +269,20 @@ export class VerifyController {
     } catch (error) {
       this.logger.error(`Verification error: ${error.message}`);
       return res.status(500).json({ message: error.message });
+    }
+  }
+
+  private async cleanupTempFolder(tempFolder: string | null): Promise<void> {
+    if (!tempFolder) {
+      return;
+    }
+
+    try {
+      await this.tempService.deleteFolder(tempFolder);
+    } catch (cleanupError) {
+      this.logger.error(
+        `Failed to clean up ${tempFolder}: ${cleanupError.message}`,
+      );
     }
   }
 }
