@@ -5,15 +5,9 @@ import {
 } from '../../constants/validation.constants';
 import { ExecService } from '../exec/exec.service';
 
-const DEFAULT_COMPILER_TIMEOUT_MS = 60 * 60 * 1000;
-
 @Injectable()
 export class CompilerService {
   private readonly logger = new Logger(CompilerService.name);
-  private readonly compilerTimeoutMs = this.readPositiveInteger(
-    process.env.COMPILER_TIMEOUT_MS,
-    DEFAULT_COMPILER_TIMEOUT_MS,
-  );
 
   constructor(private execService: ExecService) {}
 
@@ -36,29 +30,20 @@ export class CompilerService {
       `Starting contract verification for ${accountId} on ${networkId}`,
     );
     try {
-      const { stdout } = await this.execService.executeFile(
-        'near',
-        [
-          'contract',
-          'verify',
-          'deployed-at',
-          accountId,
-          'network-config',
-          networkId,
-          'now',
-        ],
-        { timeout: this.compilerTimeoutMs },
-      );
+      const { stdout } = await this.execService.executeFile('near', [
+        'contract',
+        'verify',
+        'deployed-at',
+        accountId,
+        'network-config',
+        networkId,
+        'now',
+      ]);
       this.logger.log(`Contract verification completed`);
       return { stdout };
     } catch (error) {
       this.logger.error(`Error verifying contract: ${error.message}`);
       throw error;
     }
-  }
-
-  private readPositiveInteger(value: string, fallback: number): number {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 }

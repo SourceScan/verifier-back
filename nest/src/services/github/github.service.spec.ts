@@ -49,41 +49,80 @@ describe('GithubService', () => {
   });
 
   it('should parse source code snapshot', () => {
-    const sha = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
+    const ref = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
     const result = service.parseSourceCodeSnapshot(
-      `git+https://github.com/near/cargo-near-new-project-template?rev=${sha}`,
+      `git+https://github.com/near/cargo-near-new-project-template?rev=${ref}`,
     );
     expect(result).toEqual({
       repoUrl: 'https://github.com/near/cargo-near-new-project-template',
-      sha,
+      sha: ref,
     });
   });
 
   it('should parse NEP-330 source code snapshot with fragment SHA', () => {
-    const sha = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
+    const ref = '9c16aaff3c0fe5bda4d8ffb418c4bb2b535eb420';
     const result = service.parseSourceCodeSnapshot(
-      `git+https://github.com/near/cargo-near-new-project-template.git#${sha}`,
+      `git+https://github.com/near/cargo-near-new-project-template.git#${ref}`,
     );
     expect(result).toEqual({
       repoUrl: 'https://github.com/near/cargo-near-new-project-template.git',
-      sha,
+      sha: ref,
     });
   });
 
-  it('should reject source snapshots with conflicting SHAs', () => {
+  it('should parse non-GitHub and symbolic git refs', () => {
+    const result = service.parseSourceCodeSnapshot(
+      'git+https://gitlab.com/user/repo.git?rev=v1.2.3',
+    );
+
+    expect(result).toEqual({
+      repoUrl: 'https://gitlab.com/user/repo.git',
+      sha: 'v1.2.3',
+    });
+  });
+
+  it('should parse SSH source snapshots', () => {
+    const result = service.parseSourceCodeSnapshot(
+      'git+ssh://git@gitlab.com/user/repo.git?rev=feature/repro-build',
+    );
+
+    expect(result).toEqual({
+      repoUrl: 'ssh://git@gitlab.com/user/repo.git',
+      sha: 'feature/repro-build',
+    });
+  });
+
+  it('should parse SCP-like SSH source snapshots', () => {
+    const result = service.parseSourceCodeSnapshot(
+      'git+git@gitlab.com:user/repo.git?rev=a80bc29',
+    );
+
+    expect(result).toEqual({
+      repoUrl: 'git@gitlab.com:user/repo.git',
+      sha: 'a80bc29',
+    });
+  });
+
+  it('should reject source snapshots with conflicting refs', () => {
     expect(() =>
       service.parseSourceCodeSnapshot(
         'git+https://github.com/user/repo?rev=0123456789abcdef0123456789abcdef01234567#89abcdef0123456789abcdef0123456789abcdef',
       ),
-    ).toThrow('Source snapshot must not contain conflicting commit SHAs');
+    ).toThrow('Source snapshot must not contain conflicting git refs');
   });
 
-  it('should reject non-GitHub source snapshots', () => {
+  it('should reject unsafe refs', () => {
     expect(() =>
       service.parseSourceCodeSnapshot(
-        'git+ssh://example.com/user/repo?rev=0123456789abcdef0123456789abcdef01234567',
+        'git+https://github.com/user/repo?rev=main;touch',
       ),
-    ).toThrow('Repository URL must use HTTPS');
+    ).toThrow('Source snapshot must pin a safe git ref');
+  });
+
+  it('should reject local filesystem source snapshots', () => {
+    expect(() =>
+      service.parseSourceCodeSnapshot('git+file:///tmp/repo?rev=main'),
+    ).toThrow('Repository URL must use HTTPS, SSH, or git protocol');
   });
 
   it('should get repo path', () => {
@@ -99,7 +138,7 @@ describe('GithubService', () => {
     await expect(service.checkout('/tmp/repo', sha)).resolves.not.toThrow();
     expect(execService.executeFile).toHaveBeenCalledWith(
       'git',
-      ['-c', 'advice.detachedHead=false', 'checkout', '--detach', sha],
+      ['-c', 'advice.detachedHead=false', 'checkout', '--detach', '--', sha],
       { cwd: '/tmp/repo' },
     );
   });

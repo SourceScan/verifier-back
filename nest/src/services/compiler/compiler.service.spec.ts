@@ -5,11 +5,8 @@ import { CompilerService } from './compiler.service';
 describe('CompilerService', () => {
   let compilerService: CompilerService;
   let execService: ExecService;
-  const originalCompilerTimeoutMs = process.env.COMPILER_TIMEOUT_MS;
 
   beforeEach(async () => {
-    delete process.env.COMPILER_TIMEOUT_MS;
-
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         CompilerService,
@@ -26,14 +23,6 @@ describe('CompilerService', () => {
     execService = moduleRef.get<ExecService>(ExecService);
   });
 
-  afterAll(() => {
-    if (originalCompilerTimeoutMs) {
-      process.env.COMPILER_TIMEOUT_MS = originalCompilerTimeoutMs;
-    } else {
-      delete process.env.COMPILER_TIMEOUT_MS;
-    }
-  });
-
   it('should verify contract successfully', async () => {
     const mockOutput = ['Contract verified'];
     jest
@@ -42,19 +31,15 @@ describe('CompilerService', () => {
 
     const result = await compilerService.verifyContract('test.near', 'mainnet');
     expect(result.stdout).toEqual(mockOutput);
-    expect(execService.executeFile).toHaveBeenCalledWith(
-      'near',
-      [
-        'contract',
-        'verify',
-        'deployed-at',
-        'test.near',
-        'network-config',
-        'mainnet',
-        'now',
-      ],
-      { timeout: 60 * 60 * 1000 },
-    );
+    expect(execService.executeFile).toHaveBeenCalledWith('near', [
+      'contract',
+      'verify',
+      'deployed-at',
+      'test.near',
+      'network-config',
+      'mainnet',
+      'now',
+    ]);
   });
 
   it('should handle errors in contract verification', async () => {

@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
-import { isValidCommitSha } from '../../constants/validation.constants';
+import { isValidGitRef } from '../../constants/validation.constants';
 import { ExecService } from '../exec/exec.service';
+
+const SCP_LIKE_GIT_URL_PATTERN =
+  /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+(?:\.git)?$/;
 
 @Injectable()
 export class GithubService {
@@ -31,52 +34,35 @@ export class GithubService {
       throw new BadRequestException('Source snapshot must use git+ URL format');
     }
 
-    let snapshotUrl: URL;
+    const { repoUrl: rawRepoUrl, ref } = this.parseGitSnapshot(
+      sourceCodeSnapshot.slice('git+'.length),
+    );
 
-    try {
-      snapshotUrl = new URL(sourceCodeSnapshot.slice('git+'.length));
-    } catch {
-      throw new BadRequestException('Source snapshot must contain a valid URL');
-    }
-    const revSha = snapshotUrl.searchParams.get('rev');
-    const hashSha = snapshotUrl.hash ? snapshotUrl.hash.slice(1) : null;
-    if (revSha && hashSha && revSha !== hashSha) {
-      throw new BadRequestException(
-        'Source snapshot must not contain conflicting commit SHAs',
-      );
+    if (!ref || !isValidGitRef(ref)) {
+      throw new BadRequestException('Source snapshot must pin a safe git ref');
     }
 
-    const sha = revSha ?? hashSha;
-
-    if (!sha || !isValidCommitSha(sha)) {
-      throw new BadRequestException(
-        'Source snapshot must pin a full 40-character commit SHA',
-      );
-    }
-
-    snapshotUrl.search = '';
-    snapshotUrl.hash = '';
-
-    const repoUrl = this.validateRepoUrl(snapshotUrl.toString());
-    return { repoUrl, sha };
+    const repoUrl = this.validateRepoUrl(rawRepoUrl);
+    return { repoUrl, sha: ref };
   }
 
   getRepoPath(tempFolder: string, repoUrl: string): string {
-    const parsedUrl = new URL(this.validateRepoUrl(repoUrl));
-    const repoName = path.basename(parsedUrl.pathname).replace(/\.git$/, '');
+    const normalizedRepoUrl = this.validateRepoUrl(repoUrl);
+    const repoPath = this.getRepoUrlPath(normalizedRepoUrl);
+    const repoName = path.basename(repoPath).replace(/\.git$/, '');
     return path.join(tempFolder, repoName);
   }
 
-  async checkout(repoPath: string, sha: string): Promise<void> {
-    if (!isValidCommitSha(sha)) {
-      throw new BadRequestException('Commit SHA must be 40 hex characters');
+  async checkout(repoPath: string, ref: string): Promise<void> {
+    if (!isValidGitRef(ref)) {
+      throw new BadRequestException('Git ref contains unsafe characters');
     }
 
-    this.logger.log(`Starting checkout command for ${sha}`);
+    this.logger.log(`Starting checkout command for ${ref}`);
     try {
       await this.execService.executeFile(
         'git',
-        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', sha],
+        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', '--', ref],
         { cwd: repoPath },
       );
       this.logger.log(`Checkout completed successfully.`);
@@ -86,7 +72,73 @@ export class GithubService {
     }
   }
 
+  private parseGitSnapshot(snapshot: string): {
+    repoUrl: string;
+    ref: string | null;
+  } {
+    try {
+      const snapshotUrl = new URL(snapshot);
+      const revRef = snapshotUrl.searchParams.get('rev');
+      const hashRef = snapshotUrl.hash
+        ? decodeURIComponent(snapshotUrl.hash.slice(1))
+        : null;
+
+      if (revRef && hashRef && revRef !== hashRef) {
+        throw new BadRequestException(
+          'Source snapshot must not contain conflicting git refs',
+        );
+      }
+
+      snapshotUrl.search = '';
+      snapshotUrl.hash = '';
+
+      return { repoUrl: snapshotUrl.toString(), ref: revRef ?? hashRef };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+    }
+
+    return this.parseScpLikeGitSnapshot(snapshot);
+  }
+
+  private parseScpLikeGitSnapshot(snapshot: string): {
+    repoUrl: string;
+    ref: string;
+  } {
+    const revMarker = '?rev=';
+    const revIndex = snapshot.indexOf(revMarker);
+    const hashIndex = snapshot.indexOf('#');
+
+    if (revIndex === -1 && hashIndex === -1) {
+      throw new BadRequestException('Source snapshot must pin a git ref');
+    }
+
+    if (revIndex !== -1) {
+      const repoUrl = snapshot.slice(0, revIndex);
+      const refWithPossibleHash = snapshot.slice(revIndex + revMarker.length);
+      const [revRef, hashRef] = refWithPossibleHash.split('#');
+
+      if (hashRef && revRef !== hashRef) {
+        throw new BadRequestException(
+          'Source snapshot must not contain conflicting git refs',
+        );
+      }
+
+      return { repoUrl, ref: revRef };
+    }
+
+    return {
+      repoUrl: snapshot.slice(0, hashIndex),
+      ref: snapshot.slice(hashIndex + 1),
+    };
+  }
+
   private validateRepoUrl(repoUrl: string): string {
+    if (SCP_LIKE_GIT_URL_PATTERN.test(repoUrl)) {
+      return repoUrl;
+    }
+
     let parsedUrl: URL;
 
     try {
@@ -95,24 +147,23 @@ export class GithubService {
       throw new BadRequestException('Repository URL must be a valid URL');
     }
 
-    if (parsedUrl.protocol !== 'https:') {
-      throw new BadRequestException('Repository URL must use HTTPS');
+    if (!['https:', 'ssh:', 'git:'].includes(parsedUrl.protocol)) {
+      throw new BadRequestException(
+        'Repository URL must use HTTPS, SSH, or git protocol',
+      );
     }
 
-    if (parsedUrl.username || parsedUrl.password) {
+    if (
+      parsedUrl.password ||
+      (parsedUrl.protocol === 'https:' && parsedUrl.username)
+    ) {
       throw new BadRequestException('Repository URL must not contain secrets');
     }
 
-    if (parsedUrl.hostname.toLowerCase() !== 'github.com') {
-      throw new BadRequestException('Only github.com repositories are allowed');
-    }
-
     const normalizedPath = parsedUrl.pathname.replace(/\/$/, '');
-    if (
-      !/^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/.test(normalizedPath)
-    ) {
+    if (!/^\/[A-Za-z0-9._~/-]+(?:\.git)?$/.test(normalizedPath)) {
       throw new BadRequestException(
-        'Repository URL must point to a GitHub repo',
+        'Repository URL must point to a git repository',
       );
     }
 
@@ -121,5 +172,13 @@ export class GithubService {
     parsedUrl.hash = '';
 
     return parsedUrl.toString();
+  }
+
+  private getRepoUrlPath(repoUrl: string): string {
+    if (SCP_LIKE_GIT_URL_PATTERN.test(repoUrl)) {
+      return repoUrl.slice(repoUrl.indexOf(':') + 1);
+    }
+
+    return new URL(repoUrl).pathname;
   }
 }
