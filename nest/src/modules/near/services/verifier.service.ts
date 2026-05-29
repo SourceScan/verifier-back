@@ -1,11 +1,9 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { Account, utils } from 'near-api-js';
-import { JsonRpcProvider } from '@near-js/providers';
-import { KeyPairSigner } from '@near-js/signers';
-import { KeyPairString } from '@near-js/crypto';
-import { actionCreators } from '@near-js/transactions';
+import type { Account, JsonRpcProvider, KeyPairString } from 'near-api-js';
 import ContractData from '../interfaces/contract-data.interface';
 import NearConfig from '../interfaces/near-config.interface';
+
+type NearActions = typeof import('near-api-js').actions;
 
 interface RpcQueryResult {
   result: number[];
@@ -19,15 +17,17 @@ export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
   private account: Account;
   private provider: JsonRpcProvider;
+  private actions: NearActions;
+  private readonly ready: Promise<void>;
 
   constructor(private config: NearConfig) {
-    this.initialize();
+    this.ready = this.initialize();
   }
 
-  private initialize() {
-    const keyPair = utils.KeyPair.fromString(
-      this.config.privateKey as KeyPairString,
-    );
+  private async initialize() {
+    const { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions } =
+      await import('near-api-js');
+    const keyPair = KeyPair.fromString(this.config.privateKey as KeyPairString);
 
     this.provider = new JsonRpcProvider({
       url: this.config.nodeUrl,
@@ -35,9 +35,12 @@ export class VerifierService {
     const signer = new KeyPairSigner(keyPair);
 
     this.account = new Account(this.config.accountId, this.provider, signer);
+    this.actions = actions;
   }
 
   async getContract(accountId: string): Promise<ContractData | null> {
+    await this.ready;
+
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
     try {
@@ -75,6 +78,8 @@ export class VerifierService {
     blockHeight: number,
     lang: string,
   ): Promise<void> {
+    await this.ready;
+
     this.logger.log(`Setting contract for account ID: ${accountId}`);
 
     try {
@@ -89,7 +94,7 @@ export class VerifierService {
       await this.account.signAndSendTransaction({
         receiverId: this.config.accountId,
         actions: [
-          actionCreators.functionCall(
+          this.actions.functionCall(
             'set_contract',
             args,
             BigInt('30000000000000'),
@@ -109,6 +114,8 @@ export class VerifierService {
   }
 
   async getContractsCount(): Promise<number> {
+    await this.ready;
+
     this.logger.log('Fetching contracts count');
 
     try {
@@ -131,6 +138,8 @@ export class VerifierService {
   }
 
   async getContractsByCodeHash(codeHash: string): Promise<ContractData[]> {
+    await this.ready;
+
     this.logger.log(`Fetching contracts by code hash: ${codeHash}`);
 
     try {

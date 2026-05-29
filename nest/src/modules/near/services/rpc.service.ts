@@ -1,19 +1,23 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { providers } from 'near-api-js';
-import { BlockResult, QueryResponseKind } from '@near-js/types';
+import type { JsonRpcProvider, QueryResponseKind } from 'near-api-js';
 import NearConfig from '../interfaces/near-config.interface';
+
+type BlockResult = Awaited<ReturnType<JsonRpcProvider['viewBlock']>>;
 
 @Injectable()
 export class RpcService {
   private readonly logger = new Logger(RpcService.name);
-  private provider: InstanceType<typeof providers.JsonRpcProvider>;
+  private provider: JsonRpcProvider;
+  private readonly ready: Promise<void>;
 
   constructor(private config: NearConfig) {
-    this.initialize();
+    this.ready = this.initialize();
   }
 
   private async initialize() {
-    this.provider = new providers.JsonRpcProvider({
+    const { JsonRpcProvider } = await import('near-api-js');
+
+    this.provider = new JsonRpcProvider({
       url: this.config.nodeUrl,
     });
   }
@@ -23,9 +27,11 @@ export class RpcService {
   }
 
   async block(blockId?: number): Promise<BlockResult> {
+    await this.ready;
+
     try {
-      const response = await this.provider.block(
-        blockId ? { blockId: blockId.toString() } : { finality: 'final' },
+      const response = await this.provider.viewBlock(
+        blockId ? { blockId } : { finality: 'final' },
       );
 
       this.logger.log('Latest block details retrieved');
@@ -42,6 +48,8 @@ export class RpcService {
     accountId: string,
     blockId?: number,
   ): Promise<QueryResponseKind> {
+    await this.ready;
+
     try {
       const queryParams: any = {
         request_type: 'view_code',
@@ -75,6 +83,8 @@ export class RpcService {
     blockId?: number,
     args?: any[],
   ): Promise<any> {
+    await this.ready;
+
     try {
       const queryParams: any = {
         request_type: 'call_function',
