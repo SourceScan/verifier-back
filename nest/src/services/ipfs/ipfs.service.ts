@@ -28,10 +28,11 @@ export class IpfsService {
     this.logger.log(`Adding folder to IPFS from path: ${folderPath}`);
 
     const form = new FormData();
-    const files = await this.getFilesRecursively(folderPath);
+    const rootPath = await fs.realpath(folderPath);
+    const files = await this.getFilesRecursively(rootPath);
 
     for (const file of files) {
-      const relativePath = path.relative(folderPath, file);
+      const relativePath = path.relative(rootPath, file);
       const content = await fs.readFile(file);
       form.append('file', content, {
         filename: relativePath,
@@ -114,32 +115,53 @@ export class IpfsService {
     }
   }
 
-  private async getFilesRecursively(dir: string): Promise<string[]> {
+  private async getFilesRecursively(
+    dir: string,
+    rootPath = dir,
+  ): Promise<string[]> {
     const files: string[] = [];
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        files.push(...(await this.getFilesRecursively(fullPath)));
-      } else if (entry.isSymbolicLink()) {
-        // Check if symlink points to a directory or file
-        try {
-          const stat = await fs.stat(fullPath);
-          if (stat.isDirectory()) {
-            files.push(...(await this.getFilesRecursively(fullPath)));
-          } else {
-            files.push(fullPath);
-          }
-        } catch {
-          // Skip broken symlinks
-          this.logger.warn(`Skipping broken symlink: ${fullPath}`);
-        }
-      } else {
-        files.push(fullPath);
+      const stats = await fs.lstat(fullPath);
+
+      if (stats.isSymbolicLink()) {
+        this.logger.warn(
+          `Skipping symbolic link while adding to IPFS: ${fullPath}`,
+        );
+        continue;
       }
+
+      if (stats.isDirectory()) {
+        files.push(...(await this.getFilesRecursively(fullPath, rootPath)));
+        continue;
+      }
+
+      if (!stats.isFile()) {
+        this.logger.warn(
+          `Skipping non-regular file while adding to IPFS: ${fullPath}`,
+        );
+        continue;
+      }
+
+      const realPath = await fs.realpath(fullPath);
+      if (!this.isPathInsideRoot(rootPath, realPath)) {
+        this.logger.warn(`Skipping file outside IPFS root: ${fullPath}`);
+        continue;
+      }
+
+      files.push(realPath);
     }
 
     return files;
+  }
+
+  private isPathInsideRoot(rootPath: string, candidatePath: string): boolean {
+    const relativePath = path.relative(rootPath, candidatePath);
+    return (
+      relativePath === '' ||
+      (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+    );
   }
 }
