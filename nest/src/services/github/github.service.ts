@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as path from 'path';
-import { isValidGitRef } from '../../constants/validation.constants';
+import { isValidCommitSha } from '../../constants/validation.constants';
 import { ExecService } from '../exec/exec.service';
 
 const SCP_LIKE_GIT_URL_PATTERN =
@@ -28,7 +28,7 @@ export class GithubService {
 
   parseSourceCodeSnapshot(sourceCodeSnapshot: string): {
     repoUrl: string;
-    ref: string;
+    sha: string;
   } {
     if (
       typeof sourceCodeSnapshot !== 'string' ||
@@ -37,16 +37,18 @@ export class GithubService {
       throw new BadRequestException('Source snapshot must use git+ URL format');
     }
 
-    const { repoUrl: rawRepoUrl, ref } = this.parseGitSnapshot(
+    const { repoUrl: rawRepoUrl, sha } = this.parseGitSnapshot(
       sourceCodeSnapshot.slice('git+'.length),
     );
 
-    if (!ref || !isValidGitRef(ref)) {
-      throw new BadRequestException('Source snapshot must pin a safe git ref');
+    if (!sha || !isValidCommitSha(sha)) {
+      throw new BadRequestException(
+        'Source snapshot must pin a full 40-character commit SHA',
+      );
     }
 
     const repoUrl = this.validateRepoUrl(rawRepoUrl);
-    return { repoUrl, ref };
+    return { repoUrl, sha };
   }
 
   getRepoPath(tempFolder: string, repoUrl: string): string {
@@ -56,16 +58,18 @@ export class GithubService {
     return path.join(tempFolder, repoName);
   }
 
-  async checkout(repoPath: string, ref: string): Promise<void> {
-    if (!isValidGitRef(ref)) {
-      throw new BadRequestException('Git ref contains unsafe characters');
+  async checkout(repoPath: string, sha: string): Promise<void> {
+    if (!isValidCommitSha(sha)) {
+      throw new BadRequestException(
+        'Git checkout must use a full 40-character commit SHA',
+      );
     }
 
-    this.logger.log(`Starting checkout command for ${ref}`);
+    this.logger.log(`Starting checkout command for ${sha}`);
     try {
       await this.execService.executeFile(
         'git',
-        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', ref],
+        ['-c', 'advice.detachedHead=false', 'checkout', '--detach', sha],
         { cwd: repoPath },
       );
       this.logger.log(`Checkout completed successfully.`);
@@ -77,25 +81,25 @@ export class GithubService {
 
   private parseGitSnapshot(snapshot: string): {
     repoUrl: string;
-    ref: string | null;
+    sha: string | null;
   } {
     try {
       const snapshotUrl = new URL(snapshot);
-      const revRef = snapshotUrl.searchParams.get('rev');
-      const hashRef = snapshotUrl.hash
+      const revSha = snapshotUrl.searchParams.get('rev');
+      const hashSha = snapshotUrl.hash
         ? decodeURIComponent(snapshotUrl.hash.slice(1))
         : null;
 
-      if (revRef && hashRef && revRef !== hashRef) {
+      if (revSha && hashSha && revSha !== hashSha) {
         throw new BadRequestException(
-          'Source snapshot must not contain conflicting git refs',
+          'Source snapshot must not contain conflicting commit SHAs',
         );
       }
 
       snapshotUrl.search = '';
       snapshotUrl.hash = '';
 
-      return { repoUrl: snapshotUrl.toString(), ref: revRef ?? hashRef };
+      return { repoUrl: snapshotUrl.toString(), sha: revSha ?? hashSha };
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -107,33 +111,35 @@ export class GithubService {
 
   private parseScpLikeGitSnapshot(snapshot: string): {
     repoUrl: string;
-    ref: string;
+    sha: string;
   } {
     const revMarker = '?rev=';
     const revIndex = snapshot.indexOf(revMarker);
     const hashIndex = snapshot.indexOf('#');
 
     if (revIndex === -1 && hashIndex === -1) {
-      throw new BadRequestException('Source snapshot must pin a git ref');
+      throw new BadRequestException(
+        'Source snapshot must pin a full 40-character commit SHA',
+      );
     }
 
     if (revIndex !== -1) {
       const repoUrl = snapshot.slice(0, revIndex);
-      const refWithPossibleHash = snapshot.slice(revIndex + revMarker.length);
-      const [revRef, hashRef] = refWithPossibleHash.split('#');
+      const shaWithPossibleHash = snapshot.slice(revIndex + revMarker.length);
+      const [revSha, hashSha] = shaWithPossibleHash.split('#');
 
-      if (hashRef && revRef !== hashRef) {
+      if (hashSha && revSha !== hashSha) {
         throw new BadRequestException(
-          'Source snapshot must not contain conflicting git refs',
+          'Source snapshot must not contain conflicting commit SHAs',
         );
       }
 
-      return { repoUrl, ref: revRef };
+      return { repoUrl, sha: revSha };
     }
 
     return {
       repoUrl: snapshot.slice(0, hashIndex),
-      ref: snapshot.slice(hashIndex + 1),
+      sha: snapshot.slice(hashIndex + 1),
     };
   }
 

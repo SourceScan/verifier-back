@@ -112,8 +112,8 @@ export class VerifyController {
 
       buildInfo = contractMetadata.build_info;
 
-      // Extract the repository URL and pinned git ref
-      const { repoUrl, ref } = this.githubService.parseSourceCodeSnapshot(
+      // Extract the repository URL and pinned commit SHA
+      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
         buildInfo.source_code_snapshot,
       );
 
@@ -122,7 +122,7 @@ export class VerifyController {
       try {
         await this.githubService.clone(tempFolder, repoUrl);
         const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-        await this.githubService.checkout(repoPath, ref);
+        await this.githubService.checkout(repoPath, sha);
       } catch (error) {
         if (
           error.message.includes('Authentication failed') ||
@@ -224,8 +224,8 @@ export class VerifyController {
 
       // Contract metadata and buildInfo already fetched in pre-verification checks
 
-      // Extract the repository URL and pinned git ref
-      const { repoUrl, ref } = this.githubService.parseSourceCodeSnapshot(
+      // Extract the repository URL and pinned commit SHA
+      const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
         buildInfo.source_code_snapshot,
       );
 
@@ -236,10 +236,10 @@ export class VerifyController {
         // Create a temporary folder to clone the repository for IPFS
         tempFolder = await this.tempService.createFolder();
 
-        // Clone the repository and checkout the pinned git ref
+        // Clone the repository and checkout the pinned commit SHA
         await this.githubService.clone(tempFolder, repoUrl);
         const repoPath = this.githubService.getRepoPath(tempFolder, repoUrl);
-        await this.githubService.checkout(repoPath, ref);
+        await this.githubService.checkout(repoPath, sha);
 
         // Pin to IPFS
         this.logger.log(`Adding repository to IPFS for ${accountId}`);

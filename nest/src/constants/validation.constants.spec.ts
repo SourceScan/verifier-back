@@ -1,8 +1,4 @@
-import {
-  isValidCommitSha,
-  isValidGitRef,
-  isValidNearAccountId,
-} from './validation.constants';
+import { isValidCommitSha, isValidNearAccountId } from './validation.constants';
 
 describe('validation constants', () => {
   it('should accept real NEAR account ID formats', () => {
@@ -51,15 +47,5 @@ describe('validation constants', () => {
     );
     expect(isValidCommitSha('a80bc29')).toBe(false);
     expect(isValidCommitSha('main')).toBe(false);
-  });
-
-  it('should validate safe git refs', () => {
-    for (const ref of ['main', 'v1.2.3', 'feature/repro-build', 'a80bc29']) {
-      expect(isValidGitRef(ref)).toBe(true);
-    }
-
-    for (const ref of ['--help', 'main;touch', 'foo..bar', 'foo@{bar}']) {
-      expect(isValidGitRef(ref)).toBe(false);
-    }
   });
 });
