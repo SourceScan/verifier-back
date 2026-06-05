@@ -11,6 +11,11 @@ export interface IpfsFileEntry {
   Type: number; // 1 = directory, 2 = file
 }
 
+interface IpfsUploadFile {
+  sourcePath: string;
+  relativePath: string;
+}
+
 @Injectable()
 export class IpfsService {
   private readonly ipfsHost = process.env.IPFS_HOST;
@@ -32,11 +37,10 @@ export class IpfsService {
     const files = await this.getFilesRecursively(rootPath);
 
     for (const file of files) {
-      const relativePath = path.relative(rootPath, file);
-      const content = await fs.readFile(file);
+      const content = await fs.readFile(file.sourcePath);
       form.append('file', content, {
-        filename: relativePath,
-        filepath: relativePath,
+        filename: file.relativePath,
+        filepath: file.relativePath,
       });
     }
 
@@ -118,23 +122,52 @@ export class IpfsService {
   private async getFilesRecursively(
     dir: string,
     rootPath = dir,
-  ): Promise<string[]> {
-    const files: string[] = [];
+    relativeDir = '',
+    ancestorDirs = new Set<string>([rootPath]),
+  ): Promise<IpfsUploadFile[]> {
+    const files: IpfsUploadFile[] = [];
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
+      const relativePath = relativeDir
+        ? path.join(relativeDir, entry.name)
+        : entry.name;
       const stats = await fs.lstat(fullPath);
 
       if (stats.isSymbolicLink()) {
-        this.logger.warn(
-          `Skipping symbolic link while adding to IPFS: ${fullPath}`,
+        await this.addSymbolicLinkTarget(
+          files,
+          fullPath,
+          relativePath,
+          rootPath,
+          ancestorDirs,
         );
         continue;
       }
 
       if (stats.isDirectory()) {
-        files.push(...(await this.getFilesRecursively(fullPath, rootPath)));
+        const realPath = await fs.realpath(fullPath);
+        if (!this.isPathInsideRoot(rootPath, realPath)) {
+          this.logger.warn(`Skipping directory outside IPFS root: ${fullPath}`);
+          continue;
+        }
+
+        if (ancestorDirs.has(realPath)) {
+          this.logger.warn(
+            `Skipping recursive directory while adding to IPFS: ${fullPath}`,
+          );
+          continue;
+        }
+
+        files.push(
+          ...(await this.getFilesRecursively(
+            realPath,
+            rootPath,
+            relativePath,
+            new Set([...ancestorDirs, realPath]),
+          )),
+        );
         continue;
       }
 
@@ -151,10 +184,62 @@ export class IpfsService {
         continue;
       }
 
-      files.push(realPath);
+      files.push({ sourcePath: realPath, relativePath });
     }
 
     return files;
+  }
+
+  private async addSymbolicLinkTarget(
+    files: IpfsUploadFile[],
+    symlinkPath: string,
+    relativePath: string,
+    rootPath: string,
+    ancestorDirs: Set<string>,
+  ): Promise<void> {
+    let realPath: string;
+    try {
+      realPath = await fs.realpath(symlinkPath);
+    } catch {
+      this.logger.warn(`Skipping broken symlink: ${symlinkPath}`);
+      return;
+    }
+
+    if (!this.isPathInsideRoot(rootPath, realPath)) {
+      this.logger.warn(
+        `Skipping symlink outside IPFS root while adding to IPFS: ${symlinkPath}`,
+      );
+      return;
+    }
+
+    const stats = await fs.stat(realPath);
+    if (stats.isDirectory()) {
+      if (ancestorDirs.has(realPath)) {
+        this.logger.warn(
+          `Skipping recursive symlink while adding to IPFS: ${symlinkPath}`,
+        );
+        return;
+      }
+
+      files.push(
+        ...(await this.getFilesRecursively(
+          realPath,
+          rootPath,
+          relativePath,
+          new Set([...ancestorDirs, realPath]),
+        )),
+      );
+      return;
+    }
+
+    if (!stats.isFile()) {
+      this.logger.warn(
+        `Skipping symlink to non-regular file while adding to IPFS: ${symlinkPath}`,
+      );
+      return;
+    }
+
+    files.push({ sourcePath: realPath, relativePath });
   }
 
   private isPathInsideRoot(rootPath: string, candidatePath: string): boolean {

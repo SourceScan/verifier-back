@@ -93,20 +93,23 @@ describe('IpfsService', () => {
       return { tempDir, repoDir, outsideDir };
     }
 
+    async function collectFiles(repoDir: string) {
+      return (service as any).getFilesRecursively(await fs.realpath(repoDir));
+    }
+
+    function relativeFiles(files: Array<{ relativePath: string }>): string[] {
+      return files.map((file) => file.relativePath).sort();
+    }
+
     it('should skip symlinked files while collecting IPFS files', async () => {
       const { repoDir, outsideDir } = await createTempRepo();
       const outsideFile = path.join(outsideDir, 'env');
       await fs.writeFile(outsideFile, 'NEAR_MAINNET_PRIVATE_KEY=secret');
       await fs.symlink(outsideFile, path.join(repoDir, 'src', 'leak.env'));
 
-      const files = await (service as any).getFilesRecursively(
-        await fs.realpath(repoDir),
-      );
-      const relativeFiles = files.map((file: string) =>
-        path.relative(repoDir, file),
-      );
+      const files = await collectFiles(repoDir);
 
-      expect(relativeFiles).toEqual(['src/lib.rs']);
+      expect(relativeFiles(files)).toEqual(['src/lib.rs']);
     });
 
     it('should skip symlinked directories while collecting IPFS files', async () => {
@@ -117,21 +120,61 @@ describe('IpfsService', () => {
       );
       await fs.symlink(outsideDir, path.join(repoDir, 'linked-outside-dir'));
 
-      const files = await (service as any).getFilesRecursively(
-        await fs.realpath(repoDir),
-      );
-      const relativeFiles = files.map((file: string) =>
-        path.relative(repoDir, file),
+      const files = await collectFiles(repoDir);
+
+      expect(relativeFiles(files)).toEqual(['src/lib.rs']);
+    });
+
+    it('should preserve symlinked files inside the IPFS root', async () => {
+      const { repoDir } = await createTempRepo();
+      const targetFile = path.join(repoDir, 'src', 'lib.rs');
+      await fs.symlink(targetFile, path.join(repoDir, 'src', 'lib-link.rs'));
+
+      const files = await collectFiles(repoDir);
+      const linkedFile = files.find(
+        (file: { relativePath: string }) =>
+          file.relativePath === 'src/lib-link.rs',
       );
 
-      expect(relativeFiles).toEqual(['src/lib.rs']);
+      expect(relativeFiles(files)).toEqual(['src/lib-link.rs', 'src/lib.rs']);
+      expect(linkedFile?.sourcePath).toBe(await fs.realpath(targetFile));
+    });
+
+    it('should preserve symlinked directories inside the IPFS root', async () => {
+      const { repoDir } = await createTempRepo();
+      await fs.mkdir(path.join(repoDir, 'shared'), { recursive: true });
+      await fs.writeFile(path.join(repoDir, 'shared', 'mod.rs'), 'mod shared;');
+      await fs.symlink(
+        path.join(repoDir, 'shared'),
+        path.join(repoDir, 'src', 'shared-link'),
+      );
+
+      const files = await collectFiles(repoDir);
+
+      expect(relativeFiles(files)).toEqual([
+        'shared/mod.rs',
+        'src/lib.rs',
+        'src/shared-link/mod.rs',
+      ]);
+    });
+
+    it('should skip recursive symlinks inside the IPFS root', async () => {
+      const { repoDir } = await createTempRepo();
+      await fs.symlink(repoDir, path.join(repoDir, 'src', 'loop'));
+
+      const files = await collectFiles(repoDir);
+
+      expect(relativeFiles(files)).toEqual(['src/lib.rs']);
     });
 
     it('should reject resolved paths outside the IPFS root', () => {
       const rootPath = path.resolve('/tmp/sourcescan-ipfs-root');
 
       expect(
-        (service as any).isPathInsideRoot(rootPath, path.join(rootPath, 'a.rs')),
+        (service as any).isPathInsideRoot(
+          rootPath,
+          path.join(rootPath, 'a.rs'),
+        ),
       ).toBe(true);
       expect(
         (service as any).isPathInsideRoot(
