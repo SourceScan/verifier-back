@@ -1,14 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
+import {
+  NEAR_ACCOUNT_ID_PATTERN,
+  NETWORK_IDS,
+  NetworkId,
+} from '../constants/validation.constants';
 
 export class VerifyRustDto {
   @ApiProperty({
     description: 'Network ID',
     example: 'mainnet',
+    enum: NETWORK_IDS,
   })
   @IsNotEmpty()
   @IsString()
-  networkId: string;
+  @IsIn(NETWORK_IDS)
+  networkId: NetworkId;
 
   @ApiProperty({
     description: 'Account ID',
@@ -16,6 +32,9 @@ export class VerifyRustDto {
   })
   @IsNotEmpty()
   @IsString()
+  @Matches(NEAR_ACCOUNT_ID_PATTERN, {
+    message: 'accountId must be a valid NEAR account ID',
+  })
   accountId: string;
 
   @ApiProperty({
@@ -23,7 +42,9 @@ export class VerifyRustDto {
     example: 165753012,
   })
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   blockId: number;
 }
 
