@@ -1,5 +1,5 @@
 # Build stage
-FROM node:24-alpine AS build
+FROM node@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS build
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY src/ src/
 RUN npm run build
 
 # Runtime (production) layer
-FROM docker:dind AS production
+FROM docker@sha256:7d85d0eda291f1a7ab6df4a9d1802b5ad4cf9145a088bd11188c78dcb5c7392b AS production
 
 # Install dependencies for Rust, build tools, and HIDAPI
 RUN apk add --no-cache \
