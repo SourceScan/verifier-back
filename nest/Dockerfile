@@ -1,17 +1,19 @@
-# Build stage
-FROM node@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS build
+# syntax=docker/dockerfile:1.7
+
+ARG NEAR_CLI_RS_VERSION=0.27.0
+
+# Keep exact tags for reviewability and digests for reproducibility.
+FROM node:24.17.0-alpine3.24@sha256:156b55f92e98ccd5ef49578a8cea0df4679826564bad1c9d4ef04462b9f0ded6 AS node-build
 
 WORKDIR /app
 
-RUN apk add --update python3 make g++\
-   && rm -rf /var/cache/apk/*
-
 # Copy configuration files
+COPY eslint.config.mjs ./
 COPY tsconfig*.json ./
 COPY package*.json ./
 
-# Install dependencies from package-lock.json
-RUN npm ci
+# Install dependencies from package-lock.json.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 
 # Copy application sources (.ts, .tsx, js)
 COPY src/ src/
@@ -19,52 +21,71 @@ COPY src/ src/
 # Build application (produces dist/ folder)
 RUN npm run build
 
-# Runtime (production) layer
-FROM docker@sha256:7d85d0eda291f1a7ab6df4a9d1802b5ad4cf9145a088bd11188c78dcb5c7392b AS production
+# Keep only dependencies needed by the production application.
+FROM node-build AS node-production
 
-# Install dependencies for Rust, build tools, and HIDAPI
+RUN npm prune --omit=dev
+
+# Build near-cli-rs separately so Rust and compiler tooling never reach runtime.
+FROM rust:1.96.0-alpine3.24@sha256:f87aa870663e2b57ec8c69de82c7eedf7383bee987eef7612c0359635eaadb41 AS near-cli-build
+
+ARG NEAR_CLI_RS_VERSION
+
 RUN apk add --no-cache \
-    python3 \
-    git \
-    curl \
-    perl \
-    protobuf \
-    eudev-dev \
     build-base \
-    pkgconfig \
+    eudev-dev \
     linux-headers \
-    bash
+    perl \
+    pkgconf \
+    protobuf
 
-# Install Rust
-ENV RUSTUP_HOME=/usr/local/rustup
-ENV CARGO_HOME=/usr/local/cargo
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/tmp/cargo-target,sharing=locked \
+    CARGO_TARGET_DIR=/tmp/cargo-target \
+    cargo install near-cli-rs --version "${NEAR_CLI_RS_VERSION}" --locked
 
-RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
-    && curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
-    && ln -s $RUSTUP_HOME /root/.rustup \
-    && ln -s $CARGO_HOME /root/.cargo
-# Add Rust to the PATH environment variable for all subsequent commands
-ENV PATH="/usr/local/cargo/bin:$PATH"
+RUN test "$(near --version)" = "near-cli-rs ${NEAR_CLI_RS_VERSION}"
 
-# Install near-cli-rs for contract verification
-RUN cargo install near-cli-rs --locked
+# Runtime (production) layer
+FROM docker:29.6.1-dind@sha256:66d292e5c26bd33a6f6f61cacb880de2186339a524ecba1ce098dbbaceed6515 AS production
+
+ARG NEAR_CLI_RS_VERSION
+
+LABEL dev.sourcescan.near-cli-rs.version="${NEAR_CLI_RS_VERSION}"
+
+# Git requires libcurl, while Compose and Buildx are host-side tools here.
+RUN apk upgrade --no-cache libcurl \
+    && rm -f \
+        /usr/local/libexec/docker/cli-plugins/docker-buildx \
+        /usr/local/libexec/docker/cli-plugins/docker-compose
 
 # Set environment variable for near-cli-rs to run in non-interactive mode
 ENV NEAR_CI=1
 
 WORKDIR /app
 
-# Copy node and npm from build stage
-COPY --from=build /usr/local /usr/local
+# Copy Node and the pinned near CLI into the runtime image.
+COPY --from=node-build /usr/lib/libgcc_s.so.1 /usr/lib/
+COPY --from=node-build /usr/lib/libstdc++.so.6* /usr/lib/
+COPY --from=node-build /usr/local/bin/node /usr/local/bin/node
+COPY --from=near-cli-build /usr/local/cargo/bin/near /usr/local/bin/near
 
-# Copy dependencies files
+# Copy package metadata and production dependencies.
 COPY package*.json ./
-
-# Install runtime dependencies (without dev/test dependencies)
-RUN npm ci --omit=dev
+COPY --from=node-production /app/node_modules/ ./node_modules/
+COPY docker-healthcheck.js ./
 
 # Copy production build
-COPY --from=build /app/dist/ ./dist/
+COPY --from=node-build /app/dist/ ./dist/
+
+# Fail the image build if any required runtime binary is unusable.
+RUN node --version \
+    && near --version \
+    && docker --version
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["node", "docker-healthcheck.js"]
 
 # Start the application when dockerd is ready
-CMD ["sh", "-ec", "rm -f /var/run/docker.pid /var/run/docker.sock /var/run/docker/containerd/containerd.pid /var/run/docker/containerd/containerd.sock /var/run/docker/containerd/containerd.sock.ttrpc /var/run/docker/containerd/containerd-debug.sock; dockerd & until docker info >/dev/null 2>&1; do sleep 1; done; exec node dist/main.js"]
+CMD ["sh", "-ec", "rm -f /var/run/docker.pid /var/run/docker.sock /var/run/docker/containerd/containerd.pid /var/run/docker/containerd/containerd.sock /var/run/docker/containerd/containerd.sock.ttrpc /var/run/docker/containerd/containerd-debug.sock; dockerd & until node docker-healthcheck.js --docker-only >/dev/null 2>&1; do sleep 1; done; exec node dist/main.js"]

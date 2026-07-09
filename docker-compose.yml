@@ -16,7 +16,7 @@ services:
     privileged: true
 
   sscan-ipfs:
-    image: ipfs/kubo:v0.39.0
+    image: ipfs/kubo:v0.40.1@sha256:9c70a3dba0b5f362bf99317a02384a194f5c91cf5388abdb8fe7d64d83dd20bb
     container_name: ${BRANCH_NAME:-main}_sscan-ipfs
     restart: always
     environment:
@@ -35,13 +35,13 @@ services:
       - ./docker-data/ipfs:/ipfsdata
       - ./ipfs/001-configure.sh:/container-init.d/001-configure.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "ipfs swarm peers | head -1"]
+      test: ["CMD", "ipfs", "id", "--format=<id>"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   sscan-nginx:
-    image: nginx:1.27
+    image: nginx:1.30.3-alpine-slim@sha256:d5b51cfc7d55fc7a7bcf4d1d577b9c3738331df56d68f0b1d8ac9795b9470a5a
     container_name: ${BRANCH_NAME:-main}_sscan-nginx
     restart: always
     ports:
@@ -56,13 +56,23 @@ services:
     environment:
       - NGINX_PORT=${NGINX_PORT}
       - NEST_PORT=${NEST_PORT}
-      - GATE_PORT=${GATE_PORT}
-      - IPFS_PORT=${IPFS_PORT}
+      - GATE_PORT=8080
+      - IPFS_PORT=5001
       - IPFS_ADMIN_USER=${IPFS_ADMIN_USER}
       - IPFS_ADMIN_PASS=${IPFS_ADMIN_PASS}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://127.0.0.1:$${NGINX_PORT}/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     depends_on:
-      - sscan-nest
-      - sscan-ipfs
+      sscan-nest:
+        condition: service_healthy
+        restart: true
+      sscan-ipfs:
+        condition: service_healthy
+        restart: true
 
 networks:
   nwk:
