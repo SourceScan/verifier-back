@@ -67,4 +67,4 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist/ ./dist/
 
 # Start the application when dockerd is ready
-CMD sh -c "dockerd & while (! docker stats --no-stream ); do sleep 1; done && node dist/main.js"
+CMD ["sh", "-ec", "rm -f /var/run/docker.pid /var/run/docker.sock /var/run/docker/containerd/containerd.pid /var/run/docker/containerd/containerd.sock /var/run/docker/containerd/containerd.sock.ttrpc /var/run/docker/containerd/containerd-debug.sock; dockerd & until docker info >/dev/null 2>&1; do sleep 1; done; exec node dist/main.js"]
