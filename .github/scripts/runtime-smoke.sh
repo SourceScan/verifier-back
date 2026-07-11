@@ -35,6 +35,9 @@ while [ "$attempt" -lt 75 ]; do
 
   case "$health" in
     healthy)
+      docker exec "$container" node -e \
+        "if (process.env.DOCKER_HOST !== 'unix:///var/run/docker.sock') process.exit(1)"
+      docker exec "$container" docker info >/dev/null 2>&1
       docker exec "$container" docker builder prune --force >/dev/null 2>&1
       exit 0
       ;;

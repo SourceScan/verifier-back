@@ -60,8 +60,9 @@ RUN apk upgrade --no-cache libcurl \
         /usr/local/libexec/docker/cli-plugins/docker-buildx \
         /usr/local/libexec/docker/cli-plugins/docker-compose
 
-# Set environment variable for near-cli-rs to run in non-interactive mode
-ENV NEAR_CI=1
+# Keep near-cli-rs non-interactive and point child processes at the embedded daemon.
+ENV NEAR_CI=1 \
+    DOCKER_HOST=unix:///var/run/docker.sock
 
 WORKDIR /app
 
