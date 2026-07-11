@@ -27,7 +27,7 @@ FROM node-build AS node-production
 RUN npm prune --omit=dev
 
 # Build near-cli-rs separately so Rust and compiler tooling never reach runtime.
-FROM rust:1.96.0-alpine3.24@sha256:f87aa870663e2b57ec8c69de82c7eedf7383bee987eef7612c0359635eaadb41 AS near-cli-build
+FROM rust:1.96.1-alpine3.24@sha256:a41f7740f8b45d45795624eec13a8b42263cc700f19f7e4e86e04d3dda08a479 AS near-cli-build
 
 ARG NEAR_CLI_RS_VERSION
 
