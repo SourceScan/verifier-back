@@ -72,7 +72,8 @@ describe('VerifyController snapshot', () => {
     controller = module.get(VerifyController);
   });
 
-  it.each([undefined, height])(
+  // blockId 0 keeps its historical meaning: the latest final block
+  it.each([undefined, 0, height])(
     'pins every read after metadata (request block: %s)',
     async (requested) => {
       await verify(requested);

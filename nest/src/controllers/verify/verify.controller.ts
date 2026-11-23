@@ -118,12 +118,14 @@ export class VerifyController {
 
       blockHash = contractMetadataResponse.block_hash;
       blockHeight = contractMetadataResponse.block_height;
+      // blockId 0 has always meant the latest final block (callFunction treats it as unset)
+      const requestedHeight = blockId || undefined;
       if (
         typeof blockHash !== 'string' ||
         !blockHash ||
         !Number.isSafeInteger(blockHeight) ||
         blockHeight < 0 ||
-        (blockId != null && blockHeight !== blockId)
+        (requestedHeight !== undefined && blockHeight !== requestedHeight)
       ) {
         throw new Error('Invalid block in metadata response');
       }
