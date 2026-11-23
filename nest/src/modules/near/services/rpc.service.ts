@@ -40,19 +40,14 @@ export class RpcService {
 
   async viewCode(
     accountId: string,
-    blockId?: number,
+    blockHash: string,
   ): Promise<QueryResponseKind> {
     try {
       const queryParams: any = {
         request_type: 'view_code',
         account_id: accountId,
+        block_id: blockHash,
       };
-
-      if (blockId) {
-        queryParams.block_id = blockId;
-      } else {
-        queryParams.finality = 'final';
-      }
 
       const response = await this.provider.query(queryParams);
 

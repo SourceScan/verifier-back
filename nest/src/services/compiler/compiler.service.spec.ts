@@ -3,6 +3,7 @@ import { ExecService } from '../exec/exec.service';
 import { CompilerService } from './compiler.service';
 
 describe('CompilerService', () => {
+  const blockHash = '56xEo2LorUFVNbkFhCncFSWNiobdp1kzm14nZ47b5JVW';
   let compilerService: CompilerService;
   let execService: ExecService;
 
@@ -29,7 +30,11 @@ describe('CompilerService', () => {
       .spyOn(execService, 'executeFile')
       .mockResolvedValue({ stderr: [], stdout: mockOutput });
 
-    const result = await compilerService.verifyContract('test.near', 'mainnet');
+    const result = await compilerService.verifyContract(
+      'test.near',
+      'mainnet',
+      blockHash,
+    );
     expect(result.stdout).toEqual(mockOutput);
     expect(execService.executeFile).toHaveBeenCalledWith('near', [
       'contract',
@@ -38,7 +43,8 @@ describe('CompilerService', () => {
       'test.near',
       'network-config',
       'mainnet',
-      'now',
+      'at-block-hash',
+      blockHash,
     ]);
   });
 
@@ -47,13 +53,17 @@ describe('CompilerService', () => {
     jest.spyOn(execService, 'executeFile').mockRejectedValue(error);
 
     await expect(
-      compilerService.verifyContract('test.near', 'mainnet'),
+      compilerService.verifyContract('test.near', 'mainnet', blockHash),
     ).rejects.toThrow(error);
   });
 
   it('should reject unsafe account IDs before executing', async () => {
     await expect(
-      compilerService.verifyContract('test.near; touch /tmp/pwned', 'mainnet'),
+      compilerService.verifyContract(
+        'test.near; touch /tmp/pwned',
+        'mainnet',
+        blockHash,
+      ),
     ).rejects.toThrow('Invalid NEAR account ID');
     expect(execService.executeFile).not.toHaveBeenCalled();
   });

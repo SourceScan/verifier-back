@@ -93,6 +93,10 @@ export class VerifyController {
     // Pre-verification checks: Get contract metadata and validate repository accessibility
     let contractMetadata: ContractMetadataDto = null;
     let buildInfo: BuildInfo = null;
+    // Every read after the metadata lookup is pinned to the block it came from.
+    let blockHash: string;
+    let blockHeight: number;
+    let deployedHash: string;
 
     try {
       // Get contract metadata to check if source is accessible
@@ -111,6 +115,32 @@ export class VerifyController {
       }
 
       buildInfo = contractMetadata.build_info;
+
+      blockHash = contractMetadataResponse.block_hash;
+      blockHeight = contractMetadataResponse.block_height;
+      // blockId 0 has always meant the latest final block (callFunction treats it as unset)
+      const requestedHeight = blockId || undefined;
+      if (
+        typeof blockHash !== 'string' ||
+        !blockHash ||
+        !Number.isSafeInteger(blockHeight) ||
+        blockHeight < 0 ||
+        (requestedHeight !== undefined && blockHeight !== requestedHeight)
+      ) {
+        throw new Error('Invalid block in metadata response');
+      }
+
+      const code = await rpcService.viewCode(accountId, blockHash);
+      if (
+        code.block_hash !== blockHash ||
+        code.block_height !== blockHeight ||
+        !('hash' in code) ||
+        typeof code.hash !== 'string' ||
+        !code.hash
+      ) {
+        throw new Error('Invalid code response for verification block');
+      }
+      deployedHash = code.hash;
 
       // Extract the repository URL and pinned commit SHA
       const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
@@ -174,6 +204,7 @@ export class VerifyController {
       const { stdout } = await this.compilerService.verifyContract(
         accountId,
         networkId,
+        blockHash,
       );
 
       // Parse verification output
@@ -206,6 +237,16 @@ export class VerifyController {
         });
       }
 
+      // The rebuilt hash must be the code deployed at the verification block
+      if (checksum !== deployedHash) {
+        this.logger.warn(
+          `Verification failed for ${accountId}: built ${checksum}, deployed ${deployedHash} at block ${blockHeight}`,
+        );
+        return res
+          .status(400)
+          .json({ message: 'Contract verification failed' });
+      }
+
       // Check if the code hash is the same as the one in the verifier contract
       if (contractData && contractData.code_hash === checksum) {
         this.logger.log(
@@ -217,10 +258,6 @@ export class VerifyController {
       this.logger.log(
         `New verification for ${accountId}: old=${contractData?.code_hash || 'none'}, new=${checksum}`,
       );
-
-      // Get the actual block height from the contract code query
-      const codeResponse = await rpcService.viewCode(accountId, blockId);
-      const blockHeight = (codeResponse as any).block_height;
 
       // Contract metadata and buildInfo already fetched in pre-verification checks
 

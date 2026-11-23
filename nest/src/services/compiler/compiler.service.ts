@@ -17,6 +17,7 @@ export class CompilerService {
   async verifyContract(
     accountId: string,
     networkId: string,
+    blockHash: string,
   ): Promise<{ stdout: string[] }> {
     if (!isValidNearAccountId(accountId)) {
       throw new BadRequestException('Invalid NEAR account ID');
@@ -37,7 +38,8 @@ export class CompilerService {
         accountId,
         'network-config',
         networkId,
-        'now',
+        'at-block-hash',
+        blockHash,
       ]);
       this.logger.log(`Contract verification completed`);
       return { stdout };
