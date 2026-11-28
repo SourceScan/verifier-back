@@ -31,6 +31,21 @@ import { CompilerService } from '../../services/compiler/compiler.service';
 import { IpfsService } from '../../services/ipfs/ipfs.service';
 import { TempService } from '../../services/temp/temp.service';
 
+/**
+ * Reads a registry block height. The registry serializes its u64 as a JSON
+ * number; a canonical decimal string (near_sdk's U64 form) is accepted too.
+ * Returns null for anything else, including heights past the safe-integer range.
+ */
+function parseBlockHeight(value: unknown): number | null {
+  const height =
+    typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)
+      ? Number(value)
+      : value;
+  return Number.isSafeInteger(height) && (height as number) >= 0
+    ? (height as number)
+    : null;
+}
+
 @ApiTags('verify')
 @ApiExtraModels(HttpException)
 @Controller('verify')
@@ -83,11 +98,20 @@ export class VerifyController {
       throw new HttpException('Invalid network ID', 400);
     }
 
-    let contractData: ContractData = null;
+    // The existing record decides whether this request may replace it, so an
+    // unreadable registry stops the request; only a null answer means no record.
+    // It is read at the latest final block, not the verification block,
+    // because the guards below compare against the record as it is now.
+    let contractData: ContractData | null;
     try {
       contractData = await verifierService.getContract(accountId);
-    } catch {
-      // Contract not found in verifier, continue
+    } catch (error) {
+      this.logger.error(
+        `Registry read failed for ${accountId}: ${error.message}`,
+      );
+      return res.status(503).json({
+        message: `Could not read the verifier registry for ${accountId}. Please retry later.`,
+      });
     }
 
     // Pre-verification checks: Get contract metadata and validate repository accessibility
@@ -141,6 +165,31 @@ export class VerifyController {
         throw new Error('Invalid code response for verification block');
       }
       deployedHash = code.hash;
+
+      if (contractData) {
+        // The record already holds the deployed code: nothing to build or write
+        if (contractData.code_hash === deployedHash) {
+          this.logger.log(
+            `Code hash unchanged for ${accountId}: ${deployedHash} (already verified)`,
+          );
+          return res.status(400).json({ message: "Code hash didn't change" });
+        }
+
+        // set_contract replaces the record without comparing heights, so an
+        // older block must not get that far
+        const recordHeight = parseBlockHeight(contractData.block_height);
+        if (recordHeight === null) {
+          throw new Error('Invalid block height in registry record');
+        }
+        if (blockHeight < recordHeight) {
+          this.logger.warn(
+            `Rejected stale block for ${accountId}: block ${blockHeight} is older than the record at block ${recordHeight}`,
+          );
+          return res.status(409).json({
+            message: `Block ${blockHeight} is older than the verified record for ${accountId} at block ${recordHeight}. Verify at block ${recordHeight} or later.`,
+          });
+        }
+      }
 
       // Extract the repository URL and pinned commit SHA
       const { repoUrl, sha } = this.githubService.parseSourceCodeSnapshot(
@@ -247,7 +296,7 @@ export class VerifyController {
           .json({ message: 'Contract verification failed' });
       }
 
-      // Check if the code hash is the same as the one in the verifier contract
+      // Backstop for the pre-build check: never rewrite an unchanged hash
       if (contractData && contractData.code_hash === checksum) {
         this.logger.log(
           `Code hash unchanged for ${accountId}: ${checksum} (already verified)`,

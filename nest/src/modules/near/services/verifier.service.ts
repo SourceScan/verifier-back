@@ -37,9 +37,18 @@ export class VerifierService {
     this.account = new Account(this.config.accountId, this.provider, signer);
   }
 
+  /**
+   * Reads the registry record for an account.
+   *
+   * Returns null only when the registry answers that no record exists
+   * (`get_contract` returns `Option`, so that is JSON `null`). Throws when the
+   * registry can't be read or its answer can't be parsed, because callers
+   * must not mistake an outage for a missing record.
+   */
   async getContract(accountId: string): Promise<ContractData | null> {
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
+    let contractData: unknown;
     try {
       const result = await this.provider.query<RpcQueryResult>({
         request_type: 'call_function',
@@ -51,21 +60,27 @@ export class VerifierService {
         finality: 'final',
       });
 
-      const contractData: ContractData = JSON.parse(
-        Buffer.from(result.result).toString(),
-      );
-
-      this.logger.log(
-        `Contract data fetched successfully for account ID: ${accountId}`,
-      );
-      return contractData;
+      contractData = JSON.parse(Buffer.from(result.result).toString());
+      if (
+        contractData !== null &&
+        (typeof contractData !== 'object' || Array.isArray(contractData))
+      ) {
+        throw new Error('get_contract returned neither a record nor null');
+      }
     } catch (error) {
       this.logger.error(
         `Error fetching contract data for account ID: ${accountId}`,
         error.stack,
       );
-      return null;
+      throw new HttpException('Failed to read the verifier registry', 503);
     }
+
+    this.logger.log(
+      contractData === null
+        ? `No registry record for account ID: ${accountId}`
+        : `Contract data fetched successfully for account ID: ${accountId}`,
+    );
+    return contractData as ContractData | null;
   }
 
   async setContract(
