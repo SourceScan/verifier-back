@@ -46,8 +46,9 @@ RUN mkdir -p $RUSTUP_HOME $CARGO_HOME \
 # Add Rust to the PATH environment variable for all subsequent commands
 ENV PATH="/usr/local/cargo/bin:$PATH"
 
-# Install near-cli-rs for contract verification
-RUN cargo install near-cli-rs --locked
+# Install near-cli-rs for contract verification. Pinned: the verify controller
+# parses this CLI's output and relies on its at-block-hash argument.
+RUN cargo install near-cli-rs --version 0.31.1 --locked
 
 # Set environment variable for near-cli-rs to run in non-interactive mode
 ENV NEAR_CI=1
