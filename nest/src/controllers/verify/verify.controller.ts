@@ -31,21 +31,6 @@ import { CompilerService } from '../../services/compiler/compiler.service';
 import { IpfsService } from '../../services/ipfs/ipfs.service';
 import { TempService } from '../../services/temp/temp.service';
 
-/**
- * Reads a registry block height. The registry serializes its u64 as a JSON
- * number; a canonical decimal string (near_sdk's U64 form) is accepted too.
- * Returns null for anything else, including heights past the safe-integer range.
- */
-function parseBlockHeight(value: unknown): number | null {
-  const height =
-    typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)
-      ? Number(value)
-      : value;
-  return Number.isSafeInteger(height) && (height as number) >= 0
-    ? (height as number)
-    : null;
-}
-
 @ApiTags('verify')
 @ApiExtraModels(HttpException)
 @Controller('verify')
@@ -99,7 +84,8 @@ export class VerifyController {
     }
 
     // The existing record decides whether this request may replace it, so an
-    // unreadable registry stops the request; only a null answer means no record.
+    // unreadable registry or record stops the request; only a null answer
+    // means no record. getContract checks code_hash and block_height.
     // It is read at the latest final block, not the verification block,
     // because the guards below compare against the record as it is now.
     let contractData: ContractData | null;
@@ -177,10 +163,7 @@ export class VerifyController {
 
         // set_contract replaces the record without comparing heights, so an
         // older block must not get that far
-        const recordHeight = parseBlockHeight(contractData.block_height);
-        if (recordHeight === null) {
-          throw new Error('Invalid block height in registry record');
-        }
+        const recordHeight = contractData.block_height;
         if (blockHeight < recordHeight) {
           this.logger.warn(
             `Rejected stale block for ${accountId}: block ${blockHeight} is older than the record at block ${recordHeight}`,

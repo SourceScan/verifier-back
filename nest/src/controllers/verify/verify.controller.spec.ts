@@ -117,7 +117,7 @@ describe('VerifyController snapshot', () => {
   };
 
   // An unchanged hash needs no height check: nothing would be written
-  it.each([height, height + 1, 'malformed'])(
+  it.each([height, height + 1])(
     'returns the existing response for an already verified hash before building (record height: %s)',
     async (recordHeight) => {
       verifier.getContract.mockResolvedValueOnce({
@@ -133,23 +133,21 @@ describe('VerifyController snapshot', () => {
     },
   );
 
-  it.each([height + 1, String(height + 1)])(
-    'rejects a block older than the existing record (record height: %p)',
-    async (recordHeight) => {
-      verifier.getContract.mockResolvedValueOnce({
-        block_height: recordHeight,
-        code_hash: 'old',
-      });
-      await verify(height);
-      expect(response.status).toHaveBeenCalledWith(409);
-      expect(response.json).toHaveBeenCalledWith({
-        message: `Block ${height} is older than the verified record for test.near at block ${height + 1}. Verify at block ${height + 1} or later.`,
-      });
-      expectNothingBuiltOrWritten();
-    },
-  );
+  // getContract returns block_height as a number; its parsing is tested there
+  it('rejects a block older than the existing record', async () => {
+    verifier.getContract.mockResolvedValueOnce({
+      block_height: height + 1,
+      code_hash: 'old',
+    });
+    await verify(height);
+    expect(response.status).toHaveBeenCalledWith(409);
+    expect(response.json).toHaveBeenCalledWith({
+      message: `Block ${height} is older than the verified record for test.near at block ${height + 1}. Verify at block ${height + 1} or later.`,
+    });
+    expectNothingBuiltOrWritten();
+  });
 
-  it.each([height, height - 1, String(height), String(height - 1), 0, '0'])(
+  it.each([height, height - 1, 0])(
     'verifies a block at or after the existing record (record height: %p)',
     async (recordHeight) => {
       verifier.getContract.mockResolvedValueOnce({
@@ -170,42 +168,6 @@ describe('VerifyController snapshot', () => {
         'rust',
       );
       expect(response.status).toHaveBeenCalledWith(200);
-    },
-  );
-
-  it.each([
-    undefined,
-    null,
-    -1,
-    1.5,
-    NaN,
-    Infinity,
-    Number.MAX_SAFE_INTEGER + 1,
-    '',
-    ' 1',
-    '-1',
-    '1.5',
-    '1e3',
-    '0x10',
-    '01',
-    '9007199254740993',
-    true,
-    [1],
-    {},
-  ])(
-    'refuses to compare against a malformed record height (%p)',
-    async (recordHeight) => {
-      verifier.getContract.mockResolvedValueOnce({
-        block_height: recordHeight,
-        code_hash: 'old',
-      });
-      await verify(height);
-      expect(response.status).toHaveBeenCalledWith(500);
-      expect(response.json).toHaveBeenCalledWith({
-        message:
-          'Pre-verification checks failed: Invalid block height in registry record',
-      });
-      expectNothingBuiltOrWritten();
     },
   );
 
@@ -235,6 +197,10 @@ describe('VerifyController snapshot', () => {
       'rust',
     );
     expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith({
+      message: 'Contract verified successfully',
+      checksum: hash,
+    });
   });
 
   it('rejects inconsistent RPC snapshots before building', async () => {

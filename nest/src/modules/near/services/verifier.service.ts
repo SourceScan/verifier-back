@@ -14,6 +14,51 @@ interface RpcQueryResult {
   block_hash: string;
 }
 
+/** A call_function result is a JSON array of bytes; anything else is malformed. */
+function isByteArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  );
+}
+
+/**
+ * Reads a registry block height. The registry serializes its u64 as a JSON
+ * number; a canonical decimal string (near_sdk's U64 form) is accepted too.
+ * Returns null for anything else, including heights past the safe-integer range.
+ */
+function parseBlockHeight(value: unknown): number | null {
+  const height =
+    typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)
+      ? Number(value)
+      : value;
+  return Number.isSafeInteger(height) && (height as number) >= 0
+    ? (height as number)
+    : null;
+}
+
+/**
+ * Checks the fields the verify guards rely on and returns the record with a
+ * numeric block_height. JSON null is the registry's answer for no record.
+ */
+function parseRecord(value: unknown): ContractData | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('get_contract returned neither a record nor null');
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.code_hash !== 'string' || !record.code_hash) {
+    throw new Error('Registry record has an invalid code_hash');
+  }
+  const blockHeight = parseBlockHeight(record.block_height);
+  if (blockHeight === null) {
+    throw new Error('Registry record has an invalid block_height');
+  }
+  return { ...(record as unknown as ContractData), block_height: blockHeight };
+}
+
 @Injectable()
 export class VerifierService {
   private readonly logger = new Logger(VerifierService.name);
@@ -42,13 +87,14 @@ export class VerifierService {
    *
    * Returns null only when the registry answers that no record exists
    * (`get_contract` returns `Option`, so that is JSON `null`). Throws when the
-   * registry can't be read or its answer can't be parsed, because callers
-   * must not mistake an outage for a missing record.
+   * registry can't be read, its answer isn't a byte array of JSON, or the
+   * record lacks a string code_hash or a valid block_height, because callers
+   * must not mistake an outage or an unreadable record for a missing one.
    */
   async getContract(accountId: string): Promise<ContractData | null> {
     this.logger.log(`Fetching contract data for account ID: ${accountId}`);
 
-    let contractData: unknown;
+    let contractData: ContractData | null;
     try {
       const result = await this.provider.query<RpcQueryResult>({
         request_type: 'call_function',
@@ -60,13 +106,12 @@ export class VerifierService {
         finality: 'final',
       });
 
-      contractData = JSON.parse(Buffer.from(result.result).toString());
-      if (
-        contractData !== null &&
-        (typeof contractData !== 'object' || Array.isArray(contractData))
-      ) {
-        throw new Error('get_contract returned neither a record nor null');
+      if (!isByteArray(result.result)) {
+        throw new Error('get_contract result is not a byte array');
       }
+      contractData = parseRecord(
+        JSON.parse(Buffer.from(result.result).toString()),
+      );
     } catch (error) {
       this.logger.error(
         `Error fetching contract data for account ID: ${accountId}`,
@@ -80,7 +125,7 @@ export class VerifierService {
         ? `No registry record for account ID: ${accountId}`
         : `Contract data fetched successfully for account ID: ${accountId}`,
     );
-    return contractData as ContractData | null;
+    return contractData;
   }
 
   async setContract(
